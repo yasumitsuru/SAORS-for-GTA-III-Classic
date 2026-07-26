@@ -1,0 +1,59 @@
+name: Build Linux MinGW Windows x86
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test-host:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Configure native host tests
+        run: >
+          cmake -S . -B build/host-tests -G Ninja
+          -DSAORS_BUILD_ASI=OFF
+          -DSAORS_BUILD_TESTS=ON
+          -DSAORS_ENABLE_WARNINGS_AS_ERRORS=ON
+
+      - name: Build native host tests
+        run: cmake --build build/host-tests
+
+      - name: Run native host tests
+        run: ctest --test-dir build/host-tests --output-on-failure
+
+  cross-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install MinGW-w64 x86 toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ninja-build g++-mingw-w64-i686
+
+      - name: Configure Windows x86 cross-build
+        run: >
+          cmake --preset linux-mingw-x86-release
+          -DSAORS_ENABLE_WARNINGS_AS_ERRORS=ON
+
+      - name: Build Windows x86 ASI
+        run: cmake --build --preset linux-mingw-x86-release
+
+      - name: Inspect PE artifact
+        run: file build/linux-mingw-x86-release/bin/SAORSForGTA3.asi
+
+      - name: Upload ASI
+        uses: actions/upload-artifact@v4
+        with:
+          name: SAORSForGTA3-mingw-x86
+          path: build/linux-mingw-x86-release/bin/SAORSForGTA3.asi
+          if-no-files-found: error
