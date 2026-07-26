@@ -1,0 +1,51 @@
+name: Bug report
+description: Report a reproducible defect in SAORS for GTA III Classic
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not attach GTA III executables, game files, credentials, or copyrighted assets.
+  - type: input
+    id: version
+    attributes:
+      label: Plugin version or commit
+      placeholder: 0.1.0 or a commit SHA
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      options:
+        - Windows 10
+        - Windows 11
+        - SteamOS/Proton
+        - Other Wine/Proton
+        - Build or unit tests only
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Include exact steps, expected behavior, and actual behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs
+      description: Remove usernames, private URLs, tokens, and local paths before pasting.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Safety checks
+      options:
+        - label: I did not attach copyrighted game files or executables.
+          required: true
+        - label: I removed credentials and private stream URLs.
+          required: true
