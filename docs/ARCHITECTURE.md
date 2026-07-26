@@ -16,9 +16,12 @@ Configuration + PlaylistParser
 RadioController <---- GameIntegration (verified adapters only)
        |
        v
-StreamManager ----> AudioBackend interface ----> future backend
+StreamManager ----> AudioBackendFactory ----> LibVlcAudioBackend (optional)
+                         |                \--> NullAudioBackend (safe fallback)
+                         |
+saors_stream_probe ------+
        |
-       +---- failure ----> original game radio remains active
+       +---- backend failure ----> original game radio remains active
 ```
 
 ## Components
@@ -33,14 +36,41 @@ missing sections, and never evaluates environment variables or includes other fi
 
 `PlaylistParser` accepts direct HTTP/HTTPS URLs, line-oriented M3U/M3U8 content,
 and numbered PLS `FileN` entries. It performs syntax-level URL validation only.
-Downloading content, MIME detection, HLS segment handling, redirects, and TLS are
-responsibilities of a future network/audio backend.
+Downloading content, MIME detection, redirects, decoding, and TLS are delegated to
+the selected audio backend. HLS interpretation is not implemented by the parser.
 
 ### AudioBackend
 
 The interface owns operations for open, play, pause, stop, volume, state, and
-errors. Version 0.1.0 ships only `NullAudioBackend`, which fails explicitly instead
-of pretending to play audio.
+errors. Version 0.2.0-dev keeps `NullAudioBackend` as the default and adds an
+optional dynamically loaded libVLC 3 backend.
+
+`AudioBackendFactory` contains all external-library initialization failures. With
+libVLC support compiled, it searches an explicitly configured root and then
+`vlc/` beside the executable. A missing DLL, incompatible architecture, incomplete
+plugin directory, or libVLC initialization error produces a sanitized warning and
+the null fallback.
+
+The core resolves the libVLC C API with `LoadLibraryExW` and `GetProcAddress`.
+Consequently, the ASI has no loader-time import dependency on `libvlc.dll`.
+Headers and the import library are still validated as part of the supplied SDK so
+the build uses one complete, versioned package. Runtime loading is restricted to
+an absolute path and safe Windows DLL search flags.
+
+The backend creates one instance and one media player, disables video, applies
+per-media network caching, maps volume from `0.0–1.0` to `0–100`, and serializes
+all public calls with a mutex. State is currently polled through the documented
+player state API. Event callbacks were deliberately deferred so callback lifetime
+cannot outlive an ASI-owned object.
+
+The native libVLC logger is unset. This prevents diagnostic messages outside the
+central URL sanitizer from exposing user info or sensitive query values.
+
+### Stream probe
+
+`saors_stream_probe` links only to `saors_core`. It never loads GTA III or
+`GameIntegration`. It is the required validation surface for real streams,
+pause/resume, reconnect, shutdown, and Wine/Proton before gameplay integration.
 
 ### StreamManager
 
@@ -68,9 +98,9 @@ returns no in-game state. It never mutes the original radio in this milestone.
 
 `DllMain` disables thread notifications and starts a short initialization worker.
 The worker resolves paths relative to the plugin module, reads configuration, logs
-the version and unsupported-executable state, creates the null backend, and leaves
-hooks disabled. Exceptions are contained so that initialization failure does not
-escape into the host process.
+the version and unsupported-executable state, asks `AudioBackendFactory` for a
+backend, and leaves hooks disabled. External-library exceptions are contained so
+that initialization failure cannot escape into the host process.
 
 ## Threading and lifetime
 
@@ -82,8 +112,9 @@ explicit stop signal and bounded shutdown before unload.
 ## Security boundaries
 
 - Playlist and INI text are untrusted input.
-- A future network backend must enforce TLS verification, redirect limits, size
-  limits, timeouts, supported schemes, and safe metadata handling.
+- Only absolute HTTP(S) URLs cross the backend boundary.
+- libVLC owns protocol, TLS, redirect, decoder, and audio-device behavior; each
+  release configuration still needs real-stream validation.
 - Executable detection must use verified fingerprints before any address is read.
 - Hook installation must be transactional and support rollback.
 - Logs must not record credentials embedded in stream URLs.
