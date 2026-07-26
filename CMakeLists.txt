@@ -14,6 +14,7 @@ set(SAORS_VERSION "${PROJECT_VERSION}-dev")
 option(SAORS_BUILD_TESTS "Build host-runnable unit tests" ON)
 option(SAORS_ENABLE_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 option(SAORS_BUILD_ASI "Build the Windows x86 ASI plugin" ${WIN32})
+option(SAORS_BUILD_STREAM_PROBE "Build the standalone stream probe" ON)
 option(SAORS_ENABLE_LIBVLC "Build the optional dynamic libVLC backend" OFF)
 option(SAORS_ENABLE_EXPERIMENTAL_HOOKS "Enable unverified experimental game hooks" OFF)
 set(SAORS_LIBVLC_ROOT "" CACHE PATH "Root of an externally supplied libVLC SDK/runtime")
@@ -145,6 +146,25 @@ if(SAORS_BUILD_ASI)
         )
     endif()
     saors_enable_warnings(SAORSForGTA3)
+endif()
+
+if(SAORS_BUILD_STREAM_PROBE)
+    add_executable(saors_stream_probe tools/stream_probe/Main.cpp)
+    target_link_libraries(saors_stream_probe PRIVATE saors_core)
+    target_compile_definitions(
+        saors_stream_probe
+        PRIVATE
+            SAORS_STREAM_PROBE_VERSION="${SAORS_VERSION}"
+            WIN32_LEAN_AND_MEAN
+            NOMINMAX
+    )
+    set_target_properties(
+        saors_stream_probe
+        PROPERTIES
+            OUTPUT_NAME "saors_stream_probe"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+    )
+    saors_enable_warnings(saors_stream_probe)
 endif()
 
 if(SAORS_BUILD_TESTS)
