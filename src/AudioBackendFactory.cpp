@@ -18,7 +18,7 @@ namespace saors {
 namespace {
 
 std::string environmentValue(const char* name) {
-#ifdef _WIN32
+#if defined(_WIN32) && defined(_MSC_VER)
     char* value = nullptr;
     std::size_t length = 0;
     if (_dupenv_s(&value, &length, name) != 0 || value == nullptr) {

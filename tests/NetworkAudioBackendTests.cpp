@@ -13,7 +13,7 @@
 namespace {
 
 std::string testStreamUrl() {
-#ifdef _WIN32
+#if defined(_WIN32) && defined(_MSC_VER)
     char* value = nullptr;
     std::size_t length = 0;
     if (_dupenv_s(&value, &length, "SAORS_TEST_STREAM_URL") != 0 || value == nullptr) {
