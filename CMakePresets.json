@@ -1,0 +1,101 @@
+{
+  "version": 5,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 24,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "windows-msvc-x86-debug",
+      "displayName": "Windows MSVC x86 Debug",
+      "generator": "Visual Studio 17 2022",
+      "binaryDir": "${sourceDir}/build/windows-msvc-x86-debug",
+      "architecture": {
+        "value": "Win32",
+        "strategy": "set"
+      },
+      "cacheVariables": {
+        "SAORS_BUILD_ASI": "ON",
+        "SAORS_BUILD_TESTS": "ON",
+        "SAORS_ENABLE_EXPERIMENTAL_HOOKS": "OFF"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "windows-msvc-x86-release",
+      "displayName": "Windows MSVC x86 Release",
+      "inherits": "windows-msvc-x86-debug",
+      "binaryDir": "${sourceDir}/build/windows-msvc-x86-release"
+    },
+    {
+      "name": "linux-mingw-x86-debug",
+      "displayName": "Linux MinGW Windows x86 Debug",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/linux-mingw-x86-debug",
+      "toolchainFile": "${sourceDir}/cmake/Toolchain-mingw32.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "SAORS_BUILD_ASI": "ON",
+        "SAORS_BUILD_TESTS": "OFF",
+        "SAORS_ENABLE_EXPERIMENTAL_HOOKS": "OFF"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
+      "name": "linux-mingw-x86-release",
+      "displayName": "Linux MinGW Windows x86 Release",
+      "inherits": "linux-mingw-x86-debug",
+      "binaryDir": "${sourceDir}/build/linux-mingw-x86-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "windows-msvc-x86-debug",
+      "configurePreset": "windows-msvc-x86-debug",
+      "configuration": "Debug"
+    },
+    {
+      "name": "windows-msvc-x86-release",
+      "configurePreset": "windows-msvc-x86-release",
+      "configuration": "Release"
+    },
+    {
+      "name": "linux-mingw-x86-debug",
+      "configurePreset": "linux-mingw-x86-debug"
+    },
+    {
+      "name": "linux-mingw-x86-release",
+      "configurePreset": "linux-mingw-x86-release"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "windows-msvc-x86-debug",
+      "configurePreset": "windows-msvc-x86-debug",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-msvc-x86-release",
+      "configurePreset": "windows-msvc-x86-release",
+      "configuration": "Release",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}
