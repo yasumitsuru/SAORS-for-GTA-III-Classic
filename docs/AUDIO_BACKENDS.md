@@ -101,6 +101,12 @@ The backend is optional and no VLC binary is distributed. libVLC is
 LGPL-2.1-or-later, while modules can introduce additional terms. Review
 [Third-party notices](../THIRD_PARTY_NOTICES.md) before any packaging change.
 
-Windows x86 initialization and offline lifecycle were tested with 3.0.23. Real
-MP3, AAC, HTTP, HTTPS, Wine, and Proton behavior remain unverified until recorded
-stream-probe runs are completed.
+Windows x86 initialization, offline lifecycle, and controlled localhost PCM
+playback were tested with 3.0.23. Pause/resume, stop/reopen, volume API calls,
+unexpected network stop handling, timed shutdown, and console interruption
+completed without a residual process. These checks do not establish audible
+output, codec decoding, TLS, or internet-stream compatibility.
+
+Real MP3, AAC, HTTP, HTTPS, Wine, and Proton behavior remain unverified until
+authorized stream-probe runs are completed. See
+[Runtime validation](RUNTIME_VALIDATION.md).

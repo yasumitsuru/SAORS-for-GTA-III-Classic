@@ -28,7 +28,7 @@ saors_stream_probe.exe --url "https://authorized.example/stream" `
 
 The probe returns `0` only after confirmed playback for the requested duration and
 clean shutdown. Argument errors, backend failures, timeout, unexpected stop, and
-exceptions return nonzero.
+exceptions return nonzero. A handled console interruption exits with `130`.
 
 ## Backend setup
 
@@ -44,12 +44,23 @@ Never mix a 32-bit probe with Win64 DLLs. See
 ## State and timeout behavior
 
 After open/play, the probe waits up to 15 seconds for `playing`. It prints state
-changes only. `error`, an early stop/end, or timeout fails the run. If requested,
-pause/resume and reconnect must each return to `playing`.
+changes and the measured startup time. `error`, an early stop/end, or timeout
+fails the run. If requested, pause/resume and reconnect must each return to
+`playing`.
 
 The runtime version is printed when libVLC confirms it. The probe does not infer
 or print a codec name. Record the codec and transport from an independently known
 test-stream description.
+
+## Cooperative shutdown
+
+On Windows, `CTRL_C_EVENT`, `CTRL_BREAK_EVENT`, and `CTRL_CLOSE_EVENT` only set a
+cooperative stop flag. The main thread performs `AudioBackend::stop()` and owns
+libVLC destruction. Console close waits at most four seconds for that main-thread
+cleanup; no libVLC function runs in the console callback.
+
+On non-Windows hosts, `SIGINT` and `SIGTERM` set a signal-safe stop flag and use
+the same main-thread cleanup path.
 
 ## URL safety
 
@@ -84,3 +95,18 @@ with both `SAORS_ENABLE_NETWORK_TESTS=ON` and a private
 `SAORS_TEST_STREAM_URL`. Standard pull-request workflows never enable it.
 
 No real stream or Wine/Proton result has been recorded for 0.2.0-dev yet.
+
+Controlled localhost PCM playback, control operations, failure handling, and
+shutdown results are recorded in [Runtime validation](RUNTIME_VALIDATION.md).
+They do not change the pending real-stream rows above.
+
+## Remote playlists
+
+The CLI accepts an absolute HTTP(S) URL even when it returns M3U or PLS content.
+It does not download that text or call `PlaylistParser::parse()`. Controlled
+absolute, relative, and multiple-entry fixtures did not reach `playing` through
+raw libVLC media playback.
+
+Remote playlist support is therefore pending **Phase 2C —
+RemotePlaylistResolver**. Local parser unit tests are not evidence of remote
+playlist playback.

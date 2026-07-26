@@ -25,9 +25,10 @@ Linux game plugin.
 | ASI initialization | Initial, safe stub |
 | Unsupported executable handling | Implemented |
 | GTA III radio hooks | Planned; no verified addresses |
-| Optional libVLC backend | Implemented; Windows x86 build and offline lifecycle tested |
-| Standalone stream probe | Implemented; real-stream validation remains manual |
+| Optional libVLC backend | Implemented; Windows x86 build, offline lifecycle, and controlled localhost runtime tested |
+| Standalone stream probe | Implemented; local controls and shutdown validated, real streams pending |
 | MP3/AAC/HTTP(S) playback | Not yet validated with a real stream |
+| Remote M3U/PLS resolution | Not implemented; controlled playlist URLs do not play through the probe |
 | SteamOS/Proton runtime validation | Planned |
 
 No part of the current code mutes or replaces the original game radio.
@@ -103,7 +104,9 @@ The probe does not load GTA III or the ASI:
 
 It reports state changes, supports pause/resume and reconnect checks, and redacts
 credentials plus `token`, `key`, and `auth` query values. See
-[Stream probe](docs/STREAM_PROBE.md) before testing a stream.
+[Stream probe](docs/STREAM_PROBE.md) before testing a stream. The current
+[runtime evidence](docs/RUNTIME_VALIDATION.md) covers a controlled localhost
+fixture only; it is not proof of MP3, AAC, TLS, or audible output.
 
 ## Installation
 
@@ -144,9 +147,12 @@ reports.
 
 - libVLC is optional and is not bundled or enabled by default.
 - There are no installed game hooks or memory patches.
-- AAC, MP3, HTTP(S), pause, reconnect, volume, and buffering have not yet been
-  validated against a real stream.
+- Pause, reconnect, volume API calls, network-failure handling, and cooperative
+  shutdown passed with a controlled localhost PCM fixture.
+- AAC, MP3, internet HTTP(S), TLS, and audible behavior have not yet been
+  validated against an authorized real stream.
 - M3U8 parsing extracts absolute HTTP(S) entries; it is not an HLS implementation.
+- Remote M3U/PLS content is not resolved by the probe before libVLC playback.
 - plugin-sdk is not downloaded or linked yet.
 - Proton/Wine installation has documentation but no verified compatibility result.
 

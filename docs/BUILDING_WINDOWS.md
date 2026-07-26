@@ -116,6 +116,29 @@ required.
 
 See [Audio backends](AUDIO_BACKENDS.md) and [Stream probe](STREAM_PROBE.md).
 
+## Manual runtime validation
+
+Read authorized URLs interactively so they are not expanded into PowerShell
+history:
+
+```powershell
+$mp3HttpUrl = Read-Host "Authorized MP3 HTTP URL"
+$mp3HttpsUrl = Read-Host "Authorized MP3 HTTPS URL"
+$aacUrl = Read-Host "Authorized AAC URL"
+```
+
+Pass one variable at a time to the Release probe for at least 30 seconds. Keep
+raw logs under the ignored `build/` tree, never echo the variables, and publish
+only a manually sanitized summary. The URL can still be visible to local process
+inspection while the probe is running, so do not use credentials or private
+tokens when an uncredentialed authorized endpoint is available.
+
+Do not infer audible output from `State: playing`, and do not infer AAC from a
+filename extension. Record audible results only after a person listens, and
+record codecs from an authoritative stream description or a suitable inspection
+tool. See [Runtime validation](RUNTIME_VALIDATION.md) for the current evidence
+and pending rows.
+
 ## Opt-in network test
 
 Only enable this with a stream you are authorized to use:
