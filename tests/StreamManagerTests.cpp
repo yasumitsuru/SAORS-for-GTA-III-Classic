@@ -90,5 +90,5 @@ TEST_CASE("Null backend fails explicitly without retaining an active URL") {
     CHECK(manager.currentUrl().empty());
     CHECK_FALSE(manager.lastError().empty());
     CHECK(manager.state() == saors::AudioState::stopped);
-    CHECK(std::string(manager.backendName()) == "not configured");
+    CHECK(std::string(manager.backendName()) == "null");
 }

@@ -4,15 +4,19 @@ cmake_policy(SET CMP0091 NEW)
 
 project(
     SAORSForGTA3
-    VERSION 0.1.0
+    VERSION 0.2.0
     DESCRIPTION "Clean-room online radio support for GTA III Classic"
     LANGUAGES CXX
 )
 
+set(SAORS_VERSION "${PROJECT_VERSION}-dev")
+
 option(SAORS_BUILD_TESTS "Build host-runnable unit tests" ON)
 option(SAORS_ENABLE_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 option(SAORS_BUILD_ASI "Build the Windows x86 ASI plugin" ${WIN32})
+option(SAORS_ENABLE_LIBVLC "Build the optional dynamic libVLC backend" OFF)
 option(SAORS_ENABLE_EXPERIMENTAL_HOOKS "Enable unverified experimental game hooks" OFF)
+set(SAORS_LIBVLC_ROOT "" CACHE PATH "Root of an externally supplied libVLC SDK/runtime")
 set(SAORS_PLUGIN_SUFFIX ".asi" CACHE STRING "Plugin suffix (override only for diagnostics)")
 mark_as_advanced(SAORS_PLUGIN_SUFFIX)
 
@@ -20,6 +24,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 if(MSVC)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
@@ -51,11 +56,13 @@ add_library(
     saors_core
     STATIC
         src/AudioBackend.cpp
+        src/AudioBackendFactory.cpp
         src/Configuration.cpp
         src/Logger.cpp
         src/PlaylistParser.cpp
         src/RadioController.cpp
         src/StreamManager.cpp
+        src/UrlSanitizer.cpp
 )
 
 target_include_directories(
@@ -64,6 +71,33 @@ target_include_directories(
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
 )
 target_compile_features(saors_core PUBLIC cxx_std_17)
+target_compile_definitions(
+    saors_core
+    PRIVATE
+        $<$<PLATFORM_ID:Windows>:WIN32_LEAN_AND_MEAN>
+        $<$<PLATFORM_ID:Windows>:NOMINMAX>
+)
+
+set(SAORS_HAS_LIBVLC 0)
+if(SAORS_ENABLE_LIBVLC)
+    if(NOT WIN32)
+        message(FATAL_ERROR "The libVLC backend currently requires a Windows target.")
+    endif()
+    if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
+        message(
+            FATAL_ERROR
+            "The libVLC backend must be built for Windows x86. "
+            "Use a Win32 MSVC generator or the i686 MinGW toolchain."
+        )
+    endif()
+
+    find_package(LibVLC 3.0 REQUIRED)
+    target_sources(saors_core PRIVATE src/LibVlcAudioBackend.cpp)
+    target_include_directories(saors_core PRIVATE "${LibVLC_INCLUDE_DIR}")
+    set(SAORS_HAS_LIBVLC 1)
+endif()
+
+target_compile_definitions(saors_core PUBLIC SAORS_HAS_LIBVLC=${SAORS_HAS_LIBVLC})
 saors_enable_warnings(saors_core)
 
 if(SAORS_BUILD_ASI)
@@ -88,7 +122,7 @@ if(SAORS_BUILD_ASI)
     target_compile_definitions(
         SAORSForGTA3
         PRIVATE
-            SAORS_PLUGIN_VERSION="${PROJECT_VERSION}"
+            SAORS_PLUGIN_VERSION="${SAORS_VERSION}"
             WIN32_LEAN_AND_MEAN
             NOMINMAX
             $<$<BOOL:${SAORS_ENABLE_EXPERIMENTAL_HOOKS}>:SAORS_ENABLE_EXPERIMENTAL_HOOKS=1>
