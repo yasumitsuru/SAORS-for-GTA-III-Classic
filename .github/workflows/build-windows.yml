@@ -17,18 +17,20 @@ jobs:
 
       - name: Configure Windows x86
         run: >
-          cmake --preset windows-msvc-x86-release
+          cmake -S . -B build/ci-windows-x86 -A Win32
+          -DSAORS_BUILD_ASI=ON
+          -DSAORS_BUILD_TESTS=ON
           -DSAORS_ENABLE_WARNINGS_AS_ERRORS=ON
 
       - name: Build
-        run: cmake --build --preset windows-msvc-x86-release
+        run: cmake --build build/ci-windows-x86 --config Release --parallel
 
       - name: Test
-        run: ctest --preset windows-msvc-x86-release
+        run: ctest --test-dir build/ci-windows-x86 -C Release --output-on-failure
 
       - name: Upload ASI
         uses: actions/upload-artifact@v7
         with:
           name: SAORSForGTA3-windows-x86
-          path: build/windows-msvc-x86-release/bin/Release/SAORSForGTA3.asi
+          path: build/ci-windows-x86/bin/Release/SAORSForGTA3.asi
           if-no-files-found: error
