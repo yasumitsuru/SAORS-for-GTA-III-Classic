@@ -1,0 +1,47 @@
+# CMake and build output
+/build/
+/out/
+CMakeUserPresets.json
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+CTestTestfile.cmake
+Testing/
+_deps/
+
+# Compilers and IDEs
+*.obj
+*.o
+*.lib
+*.a
+*.dll
+*.asi
+*.exe
+*.exp
+*.pdb
+*.ilk
+*.idb
+*.suo
+*.user
+*.VC.db
+.vs/
+.vscode/
+
+# Runtime configuration and logs
+SAORSForGTA3.ini
+*.log
+
+# Platform and editor noise
+.DS_Store
+Thumbs.db
+*~
+*.swp
+
+# Environment and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.pfx
+*.key
