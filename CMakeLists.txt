@@ -16,10 +16,16 @@ option(SAORS_ENABLE_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 option(SAORS_BUILD_ASI "Build the Windows x86 ASI plugin" ${WIN32})
 option(SAORS_BUILD_STREAM_PROBE "Build the standalone stream probe" ON)
 option(SAORS_ENABLE_LIBVLC "Build the optional dynamic libVLC backend" OFF)
+option(SAORS_ENABLE_NETWORK_TESTS "Build opt-in network playback tests" OFF)
 option(SAORS_ENABLE_EXPERIMENTAL_HOOKS "Enable unverified experimental game hooks" OFF)
 set(SAORS_LIBVLC_ROOT "" CACHE PATH "Root of an externally supplied libVLC SDK/runtime")
+set(SAORS_TEST_STREAM_URL "" CACHE STRING "Private URL for opt-in network tests")
 set(SAORS_PLUGIN_SUFFIX ".asi" CACHE STRING "Plugin suffix (override only for diagnostics)")
-mark_as_advanced(SAORS_PLUGIN_SUFFIX)
+mark_as_advanced(SAORS_PLUGIN_SUFFIX SAORS_TEST_STREAM_URL)
+
+if(SAORS_ENABLE_NETWORK_TESTS AND NOT SAORS_BUILD_TESTS)
+    message(FATAL_ERROR "SAORS_ENABLE_NETWORK_TESTS requires SAORS_BUILD_TESTS=ON.")
+endif()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -184,13 +190,57 @@ if(SAORS_BUILD_TESTS)
 
     add_executable(
         saors_tests
+        tests/AudioBackendFactoryTests.cpp
         tests/ConfigurationTests.cpp
+        tests/LibVlcAudioBackendTests.cpp
         tests/PlaylistParserTests.cpp
         tests/StreamManagerTests.cpp
+        tests/UrlSanitizerTests.cpp
     )
     target_link_libraries(saors_tests PRIVATE saors_core Catch2::Catch2WithMain)
+    if(SAORS_ENABLE_LIBVLC)
+        file(TO_CMAKE_PATH "${LibVLC_RUNTIME_ROOT}" SAORS_TEST_LIBVLC_ROOT)
+        target_compile_definitions(
+            saors_tests
+            PRIVATE SAORS_TEST_LIBVLC_ROOT="${SAORS_TEST_LIBVLC_ROOT}"
+        )
+    endif()
     saors_enable_warnings(saors_tests)
 
     include(Catch)
     catch_discover_tests(saors_tests)
+
+    if(SAORS_ENABLE_NETWORK_TESTS)
+        if(NOT SAORS_ENABLE_LIBVLC)
+            message(FATAL_ERROR "SAORS_ENABLE_NETWORK_TESTS requires SAORS_ENABLE_LIBVLC=ON.")
+        endif()
+        if(SAORS_TEST_STREAM_URL STREQUAL "")
+            message(
+                FATAL_ERROR
+                "SAORS_ENABLE_NETWORK_TESTS requires a private SAORS_TEST_STREAM_URL."
+            )
+        endif()
+        add_executable(
+            saors_network_tests
+            tests/NetworkAudioBackendTests.cpp
+        )
+        target_link_libraries(
+            saors_network_tests
+            PRIVATE
+                saors_core
+                Catch2::Catch2WithMain
+        )
+        target_compile_definitions(
+            saors_network_tests
+            PRIVATE SAORS_TEST_LIBVLC_ROOT="${SAORS_TEST_LIBVLC_ROOT}"
+        )
+        saors_enable_warnings(saors_network_tests)
+        add_test(NAME saors_network_tests COMMAND saors_network_tests)
+        set_tests_properties(
+            saors_network_tests
+            PROPERTIES
+                ENVIRONMENT "SAORS_TEST_STREAM_URL=${SAORS_TEST_STREAM_URL}"
+                LABELS "network"
+        )
+    endif()
 endif()
