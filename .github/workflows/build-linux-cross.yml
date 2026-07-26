@@ -20,6 +20,9 @@ jobs:
           cmake -S . -B build/host-tests -G Ninja
           -DSAORS_BUILD_ASI=OFF
           -DSAORS_BUILD_TESTS=ON
+          -DSAORS_BUILD_STREAM_PROBE=ON
+          -DSAORS_ENABLE_LIBVLC=OFF
+          -DSAORS_ENABLE_NETWORK_TESTS=OFF
           -DSAORS_ENABLE_WARNINGS_AS_ERRORS=ON
 
       - name: Build native host tests
@@ -27,6 +30,9 @@ jobs:
 
       - name: Run native host tests
         run: ctest --test-dir build/host-tests --output-on-failure
+
+      - name: Smoke test null-backend stream probe
+        run: build/host-tests/bin/saors_stream_probe --help
 
   cross-build:
     runs-on: ubuntu-latest
@@ -43,13 +49,18 @@ jobs:
       - name: Configure Windows x86 cross-build
         run: >
           cmake --preset linux-mingw-x86-release
+          -DSAORS_BUILD_STREAM_PROBE=ON
+          -DSAORS_ENABLE_LIBVLC=OFF
+          -DSAORS_ENABLE_NETWORK_TESTS=OFF
           -DSAORS_ENABLE_WARNINGS_AS_ERRORS=ON
 
       - name: Build Windows x86 ASI
         run: cmake --build --preset linux-mingw-x86-release
 
       - name: Inspect PE artifact
-        run: file build/linux-mingw-x86-release/bin/SAORSForGTA3.asi
+        run: |
+          file build/linux-mingw-x86-release/bin/SAORSForGTA3.asi
+          file build/linux-mingw-x86-release/bin/saors_stream_probe.exe
 
       - name: Upload ASI
         uses: actions/upload-artifact@v7

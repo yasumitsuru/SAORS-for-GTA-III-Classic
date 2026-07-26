@@ -18,6 +18,9 @@
       "cacheVariables": {
         "SAORS_BUILD_ASI": "ON",
         "SAORS_BUILD_TESTS": "ON",
+        "SAORS_BUILD_STREAM_PROBE": "ON",
+        "SAORS_ENABLE_LIBVLC": "OFF",
+        "SAORS_ENABLE_NETWORK_TESTS": "OFF",
         "SAORS_ENABLE_EXPERIMENTAL_HOOKS": "OFF"
       },
       "condition": {
@@ -42,6 +45,9 @@
         "CMAKE_BUILD_TYPE": "Debug",
         "SAORS_BUILD_ASI": "ON",
         "SAORS_BUILD_TESTS": "OFF",
+        "SAORS_BUILD_STREAM_PROBE": "ON",
+        "SAORS_ENABLE_LIBVLC": "OFF",
+        "SAORS_ENABLE_NETWORK_TESTS": "OFF",
         "SAORS_ENABLE_EXPERIMENTAL_HOOKS": "OFF"
       },
       "condition": {

@@ -1,0 +1,82 @@
+name: Validate libVLC Windows x86
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  VLC_VERSION: 3.0.23
+  VLC_WIN32_7Z_SHA256: f148ff49cdac6c0b6b7018ad7c4e6cd24c99bc6c2dea8258d82684261a639017
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Download and verify official VLC Win32 SDK/runtime
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP "vlc-$env:VLC_VERSION-win32.7z"
+          $extract = Join-Path $env:RUNNER_TEMP "vlc-win32"
+          $url = "https://downloads.videolan.org/pub/videolan/vlc/$env:VLC_VERSION/win32/vlc-$env:VLC_VERSION-win32.7z"
+          Invoke-WebRequest -Uri $url -OutFile $archive
+          $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $archive).Hash.ToLowerInvariant()
+          if ($actual -ne $env:VLC_WIN32_7Z_SHA256) {
+            throw "VLC archive SHA-256 mismatch"
+          }
+          7z x $archive "-o$extract" -y
+          if ($LASTEXITCODE -ne 0) {
+            throw "7-Zip extraction failed"
+          }
+          $root = Join-Path $extract "vlc-$env:VLC_VERSION"
+          @(
+            "sdk/include/vlc/vlc.h",
+            "sdk/lib/libvlc.lib",
+            "libvlc.dll",
+            "libvlccore.dll",
+            "plugins/access/libhttp_plugin.dll"
+          ) | ForEach-Object {
+            if (-not (Test-Path -LiteralPath (Join-Path $root $_))) {
+              throw "VLC package is missing $_"
+            }
+          }
+          "SAORS_LIBVLC_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Configure Windows x86 with libVLC
+        shell: pwsh
+        run: >
+          cmake -S . -B build/ci-libvlc-x86 -A Win32
+          -DSAORS_BUILD_ASI=ON
+          -DSAORS_BUILD_TESTS=ON
+          -DSAORS_BUILD_STREAM_PROBE=ON
+          -DSAORS_ENABLE_LIBVLC=ON
+          -DSAORS_ENABLE_NETWORK_TESTS=OFF
+          -DSAORS_ENABLE_WARNINGS_AS_ERRORS=ON
+          "-DSAORS_LIBVLC_ROOT=$env:SAORS_LIBVLC_ROOT"
+
+      - name: Build
+        run: cmake --build build/ci-libvlc-x86 --config Release --parallel
+
+      - name: Run offline tests
+        run: ctest --test-dir build/ci-libvlc-x86 -C Release --output-on-failure
+
+      - name: Smoke test stream probe CLI
+        run: build/ci-libvlc-x86/bin/Release/saors_stream_probe.exe --help
+
+      - name: Record runner limitations
+        shell: pwsh
+        run: |
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value @"
+          ## libVLC validation scope
+
+          - VLC $env:VLC_VERSION Win32 archive from downloads.videolan.org
+          - SHA-256 verified before extraction
+          - Windows x86 build and offline lifecycle tests only
+          - Network streams, codecs, and audio-device output are not exercised on this runner
+          - The VLC package is not uploaded as a project artifact
+          "@
