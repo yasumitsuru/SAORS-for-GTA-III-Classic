@@ -13,7 +13,7 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Configure Windows x86
         run: >
@@ -27,7 +27,7 @@ jobs:
         run: ctest --preset windows-msvc-x86-release
 
       - name: Upload ASI
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: SAORSForGTA3-windows-x86
           path: build/windows-msvc-x86-release/bin/Release/SAORSForGTA3.asi
