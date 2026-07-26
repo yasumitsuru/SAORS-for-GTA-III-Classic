@@ -7,9 +7,15 @@
 #include "saors_gta3/LibVlcAudioBackend.hpp"
 #endif
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
+#include <atomic>
 #include <charconv>
 #include <chrono>
 #include <cmath>
+#include <csignal>
 #include <cstdint>
 #include <exception>
 #include <fstream>
@@ -23,6 +29,100 @@
 namespace {
 
 using Clock = std::chrono::steady_clock;
+
+#ifdef _WIN32
+std::atomic_bool stopRequested{false};
+std::atomic_bool stopHandlingCompleted{false};
+
+bool isStopRequested() noexcept {
+    return stopRequested.load(std::memory_order_relaxed);
+}
+
+void resetStopHandling() noexcept {
+    stopRequested.store(false, std::memory_order_relaxed);
+    stopHandlingCompleted.store(false, std::memory_order_relaxed);
+}
+
+BOOL WINAPI consoleControlHandler(const DWORD controlType) {
+    switch (controlType) {
+    case CTRL_C_EVENT:
+    case CTRL_BREAK_EVENT:
+    case CTRL_CLOSE_EVENT:
+        stopRequested.store(true, std::memory_order_relaxed);
+        if (controlType == CTRL_CLOSE_EVENT) {
+            constexpr int completionChecks = 40;
+            constexpr DWORD completionCheckIntervalMilliseconds = 100;
+            for (int check = 0;
+                 check < completionChecks && !stopHandlingCompleted.load(std::memory_order_relaxed);
+                 ++check) {
+                Sleep(completionCheckIntervalMilliseconds);
+            }
+        }
+        return TRUE;
+    default:
+        return FALSE;
+    }
+}
+#else
+volatile std::sig_atomic_t stopRequested = 0;
+
+bool isStopRequested() noexcept {
+    return stopRequested != 0;
+}
+
+void resetStopHandling() noexcept {
+    stopRequested = 0;
+}
+
+void signalHandler(const int signal) {
+    if (signal == SIGINT || signal == SIGTERM) {
+        stopRequested = 1;
+    }
+}
+#endif
+
+class StopHandlerRegistration {
+  public:
+    StopHandlerRegistration() noexcept {
+#ifdef _WIN32
+        installed_ = SetConsoleCtrlHandler(consoleControlHandler, TRUE) != FALSE;
+#else
+        previousInterrupt_ = std::signal(SIGINT, signalHandler);
+        previousTermination_ = std::signal(SIGTERM, signalHandler);
+        installed_ = previousInterrupt_ != SIG_ERR && previousTermination_ != SIG_ERR;
+#endif
+    }
+
+    ~StopHandlerRegistration() {
+#ifdef _WIN32
+        if (installed_) {
+            static_cast<void>(SetConsoleCtrlHandler(consoleControlHandler, FALSE));
+        }
+#else
+        if (previousInterrupt_ != SIG_ERR) {
+            static_cast<void>(std::signal(SIGINT, previousInterrupt_));
+        }
+        if (previousTermination_ != SIG_ERR) {
+            static_cast<void>(std::signal(SIGTERM, previousTermination_));
+        }
+#endif
+    }
+
+    StopHandlerRegistration(const StopHandlerRegistration&) = delete;
+    StopHandlerRegistration& operator=(const StopHandlerRegistration&) = delete;
+
+    [[nodiscard]] bool installed() const noexcept {
+        return installed_;
+    }
+
+  private:
+    bool installed_{false};
+#ifndef _WIN32
+    using SignalHandler = void (*)(int);
+    SignalHandler previousInterrupt_{SIG_ERR};
+    SignalHandler previousTermination_{SIG_ERR};
+#endif
+};
 
 struct Options {
     std::string url;
@@ -189,21 +289,44 @@ bool parseArguments(const int argc, char** argv, Options& options, std::string& 
 
 bool reportBackendError(const saors::AudioBackend& backend, Output& output) {
     const auto details = saors::sanitizeTextForLogging(backend.lastError());
-    output.line("Error: " + (details.empty() ? std::string("audio backend failed") : details));
+    if (!details.empty()) {
+        output.line("Error: " + details);
+        return false;
+    }
+
+    switch (backend.state()) {
+    case saors::AudioState::error:
+        output.line("Error: audio backend entered an error state");
+        break;
+    case saors::AudioState::stopped:
+        output.line("Error: audio backend stopped before playback completed");
+        break;
+    default:
+        output.line("Error: audio backend failed");
+        break;
+    }
     return false;
 }
 
 bool waitForPlayback(saors::AudioBackend& backend, Output& output,
                      const std::chrono::seconds timeout) {
+    const auto started = Clock::now();
     const auto deadline = Clock::now() + timeout;
     std::optional<saors::AudioState> previous;
     while (Clock::now() < deadline) {
+        if (isStopRequested()) {
+            output.line("Stop requested");
+            return false;
+        }
         const auto current = backend.state();
         if (!previous || current != *previous) {
             output.line(std::string("State: ") + stateName(current));
             previous = current;
         }
         if (current == saors::AudioState::playing) {
+            const auto startupMilliseconds =
+                std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - started);
+            output.line("Startup time: " + std::to_string(startupMilliseconds.count()) + " ms");
             return true;
         }
         if (current == saors::AudioState::error || current == saors::AudioState::stopped) {
@@ -215,12 +338,30 @@ bool waitForPlayback(saors::AudioBackend& backend, Output& output,
     return false;
 }
 
+bool sleepInterruptibly(const std::chrono::milliseconds duration) {
+    const auto deadline = Clock::now() + duration;
+    while (Clock::now() < deadline) {
+        if (isStopRequested()) {
+            return false;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    return true;
+}
+
 bool openAndPlay(saors::AudioBackend& backend, const Options& options, Output& output) {
     output.line("Opening: " + saors::sanitizeUrlForLogging(options.url));
     if (!backend.open(options.url) || !backend.play()) {
         return reportBackendError(backend, output);
     }
     return waitForPlayback(backend, output, std::chrono::seconds(15));
+}
+
+int finishInterrupted(saors::AudioBackend& backend, Output& output) {
+    backend.stop();
+    output.line(std::string("State: ") + stateName(backend.state()));
+    output.line("Playback test interrupted cleanly");
+    return 130;
 }
 
 int runProbe(const Options& options) {
@@ -256,13 +397,17 @@ int runProbe(const Options& options) {
         return 3;
     }
     if (!openAndPlay(*backend, options, output)) {
+        if (isStopRequested()) {
+            return finishInterrupted(*backend, output);
+        }
         return 3;
     }
 
     const auto started = Clock::now();
     bool pauseDone = false;
     bool reconnectDone = false;
-    while (Clock::now() - started < std::chrono::seconds(options.durationSeconds)) {
+    while (Clock::now() - started < std::chrono::seconds(options.durationSeconds) &&
+           !isStopRequested()) {
         const auto elapsed =
             std::chrono::duration_cast<std::chrono::seconds>(Clock::now() - started);
 
@@ -273,8 +418,13 @@ int runProbe(const Options& options) {
                 return 3;
             }
             output.line(std::string("State: ") + stateName(backend->state()));
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+            if (!sleepInterruptibly(std::chrono::seconds(1))) {
+                return finishInterrupted(*backend, output);
+            }
             if (!backend->play() || !waitForPlayback(*backend, output, std::chrono::seconds(15))) {
+                if (isStopRequested()) {
+                    return finishInterrupted(*backend, output);
+                }
                 return 3;
             }
             pauseDone = true;
@@ -285,6 +435,9 @@ int runProbe(const Options& options) {
             backend->stop();
             output.line(std::string("State: ") + stateName(backend->state()));
             if (!openAndPlay(*backend, options, output)) {
+                if (isStopRequested()) {
+                    return finishInterrupted(*backend, output);
+                }
                 return 3;
             }
             reconnectDone = true;
@@ -292,10 +445,15 @@ int runProbe(const Options& options) {
 
         const auto current = backend->state();
         if (current == saors::AudioState::error || current == saors::AudioState::stopped) {
+            output.line(std::string("State: ") + stateName(current));
             reportBackendError(*backend, output);
             return 3;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+
+    if (isStopRequested()) {
+        return finishInterrupted(*backend, output);
     }
 
     backend->stop();
@@ -307,6 +465,8 @@ int runProbe(const Options& options) {
 } // namespace
 
 int main(const int argc, char** argv) {
+    resetStopHandling();
+
     Options options;
     std::string error;
     if (!parseArguments(argc, argv, options, error)) {
@@ -319,12 +479,22 @@ int main(const int argc, char** argv) {
         return 0;
     }
 
+    const StopHandlerRegistration stopHandler;
+    if (!stopHandler.installed()) {
+        std::cerr << "Error: could not install the console stop handler\n";
+        return 4;
+    }
+
+    int exitCode = 4;
     try {
-        return runProbe(options);
+        exitCode = runProbe(options);
     } catch (const std::exception& exception) {
         std::cerr << "Error: " << saors::sanitizeTextForLogging(exception.what()) << '\n';
     } catch (...) {
         std::cerr << "Error: unknown stream probe failure\n";
     }
-    return 4;
+#ifdef _WIN32
+    stopHandlingCompleted.store(true, std::memory_order_relaxed);
+#endif
+    return exitCode;
 }
