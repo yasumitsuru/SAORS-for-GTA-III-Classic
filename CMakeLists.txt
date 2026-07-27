@@ -69,6 +69,7 @@ add_library(
         src/HttpUrl.cpp
         src/Logger.cpp
         src/PlaylistParser.cpp
+        src/PlaylistResolver.cpp
         src/RadioController.cpp
         src/StreamManager.cpp
         src/UrlSanitizer.cpp
@@ -212,6 +213,7 @@ if(SAORS_BUILD_TESTS)
         tests/HttpUrlTests.cpp
         tests/LibVlcAudioBackendTests.cpp
         tests/PlaylistParserTests.cpp
+        tests/PlaylistResolverTests.cpp
         tests/StreamManagerTests.cpp
         tests/UrlSanitizerTests.cpp
     )

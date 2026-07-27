@@ -25,6 +25,7 @@ class PlaylistParser {
     [[nodiscard]] static PlaylistParseResult parse(std::string_view content,
                                                    std::string_view sourceName = {});
     [[nodiscard]] static bool isSupportedUrl(std::string_view value);
+    [[nodiscard]] static bool isSupportedReference(std::string_view value);
 };
 
 } // namespace saors

@@ -1,5 +1,7 @@
 #include "saors_gta3/PlaylistParser.hpp"
 
+#include "saors_gta3/HttpUrl.hpp"
+
 #include <algorithm>
 #include <cctype>
 #include <map>
@@ -84,16 +86,16 @@ PlaylistParseResult parseM3u(const std::string& content) {
         if (cleaned.empty() || cleaned.front() == '#') {
             continue;
         }
-        if (PlaylistParser::isSupportedUrl(cleaned)) {
+        if (PlaylistParser::isSupportedReference(cleaned)) {
             result.urls.push_back(std::move(cleaned));
         } else {
             result.warnings.push_back("line " + std::to_string(lineNumber) +
-                                      ": ignored entry that is not an absolute HTTP(S) URL");
+                                      ": ignored unsafe or unsupported playlist entry");
         }
     }
 
     if (result.urls.empty()) {
-        result.errors.emplace_back("playlist does not contain a valid HTTP(S) stream URL");
+        result.errors.emplace_back("playlist does not contain a usable HTTP(S) reference");
     }
     result.success = result.errors.empty();
     return result;
@@ -130,11 +132,11 @@ PlaylistParseResult parsePls(const std::string& content) {
         }
 
         auto url = trim(cleaned.substr(separator + 1));
-        if (PlaylistParser::isSupportedUrl(url)) {
+        if (PlaylistParser::isSupportedReference(url)) {
             indexedUrls[*index] = std::move(url);
         } else {
             result.warnings.push_back("line " + std::to_string(lineNumber) +
-                                      ": ignored File entry with an invalid HTTP(S) URL");
+                                      ": ignored unsafe or unsupported File entry");
         }
     }
 
@@ -143,7 +145,7 @@ PlaylistParseResult parsePls(const std::string& content) {
         result.urls.push_back(std::move(url));
     }
     if (result.urls.empty()) {
-        result.errors.emplace_back("PLS playlist does not contain a valid FileN HTTP(S) URL");
+        result.errors.emplace_back("PLS playlist does not contain a usable FileN reference");
     }
     result.success = result.errors.empty();
     return result;
@@ -174,30 +176,26 @@ PlaylistParseResult PlaylistParser::parse(const std::string_view content,
 
 bool PlaylistParser::isSupportedUrl(const std::string_view value) {
     const auto cleaned = trim(std::string(value));
-    if (cleaned.empty() ||
-        std::any_of(cleaned.begin(), cleaned.end(),
-                    [](const unsigned char character) { return std::isspace(character) != 0; })) {
+    return static_cast<bool>(parseHttpUrl(cleaned));
+}
+
+bool PlaylistParser::isSupportedReference(const std::string_view value) {
+    const auto cleaned = trim(std::string(value));
+    if (cleaned.empty() || hasHttpUrlControlCharacters(cleaned) ||
+        std::any_of(cleaned.begin(), cleaned.end(), [](const unsigned char character) {
+            return std::isspace(character) != 0 || character == '\\' || character == '<' ||
+                   character == '>' || character == '"';
+        })) {
         return false;
+    }
+    if (isSupportedUrl(cleaned)) {
+        return true;
     }
 
-    const auto normalized = lowercase(cleaned);
-    std::size_t authorityStart = 0;
-    if (normalized.rfind("http://", 0) == 0) {
-        authorityStart = 7;
-    } else if (normalized.rfind("https://", 0) == 0) {
-        authorityStart = 8;
-    } else {
-        return false;
-    }
-
-    const auto authorityEnd = cleaned.find_first_of("/?#", authorityStart);
-    const auto authority = cleaned.substr(authorityStart, authorityEnd == std::string::npos
-                                                              ? std::string::npos
-                                                              : authorityEnd - authorityStart);
-    if (authority.empty() || authority == "." || authority == "..") {
-        return false;
-    }
-    return authority.find_first_of("<>\"") == std::string::npos;
+    const auto firstDelimiter = cleaned.find_first_of("/?#");
+    const auto colon = cleaned.find(':');
+    return colon == std::string::npos ||
+           (firstDelimiter != std::string::npos && colon > firstDelimiter);
 }
 
 } // namespace saors
