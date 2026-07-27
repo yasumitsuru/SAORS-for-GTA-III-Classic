@@ -1,8 +1,8 @@
 #pragma once
 
-#include "saors_gta3\FileHasher.hpp"
-#include "saors_gta3\PeImageReader.hpp"
-#include "saors_gta3\Result.hpp"
+#include "saors_gta3/FileHasher.hpp"
+#include "saors_gta3/PeImageReader.hpp"
+#include "saors_gta3/Result.hpp"
 
 #include <cstdint>
 #include <filesystem>
