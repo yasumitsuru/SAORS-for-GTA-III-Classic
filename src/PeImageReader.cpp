@@ -15,8 +15,7 @@ namespace {
 
 constexpr std::uint16_t imageFileMachineI386 = 0x014CU;
 constexpr std::uint16_t imageOptionalHeader32Magic = 0x010BU;
-constexpr std::uint64_t maximumPe32FileSize =
-    static_cast<std::uint64_t>(std::numeric_limits<std::uint32_t>::max());
+constexpr std::uint64_t maximumPe32FileSize = 512U * 1024U * 1024U;
 constexpr std::uint32_t maximumPeHeaderOffset = 1024U * 1024U;
 constexpr std::uint16_t maximumSections = 96U;
 constexpr std::size_t dosHeaderSize = 64U;
@@ -239,9 +238,10 @@ Result<PeImageMetadata> PeImageReader::read(const std::filesystem::path& path) c
         info.rawSize = readU32(section + 16U);
         info.rawOffset = readU32(section + 20U);
 
-        if (info.virtualSize > 0U) {
+        const auto virtualSpan = std::max(info.virtualSize, info.rawSize);
+        if (virtualSpan > 0U) {
             std::uint32_t virtualEnd = 0;
-            if (!checkedAdd(info.virtualAddress, info.virtualSize, virtualEnd) ||
+            if (!checkedAdd(info.virtualAddress, virtualSpan, virtualEnd) ||
                 info.virtualAddress >= sizeOfImage || virtualEnd > sizeOfImage) {
                 return fail("PE section virtual range is outside the image");
             }

@@ -45,6 +45,13 @@ TEST_CASE("PE reader supports an explicitly supplied Unicode path") {
     CHECK(result.value.sections.front().name == ".text");
 }
 
+TEST_CASE("PE reader reports a missing explicitly supplied file") {
+    const auto result = saors::PeImageReader{}.read(
+        std::filesystem::temp_directory_path() / "saors-missing-pe-fixture.exe");
+    CHECK_FALSE(result);
+    CHECK(result.error == "unable to open executable for reading");
+}
+
 TEST_CASE("PE reader rejects empty small and invalid DOS images") {
     CHECK_FALSE(readFixture({}));
     CHECK_FALSE(readFixture(std::vector<std::uint8_t>(63U, 0U)));

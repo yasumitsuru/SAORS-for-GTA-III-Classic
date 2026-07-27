@@ -50,7 +50,7 @@ and section table without loading or executing the inspected file. It rejects:
 - raw or virtual range overflow, out-of-file data, and overlapping regions;
 - unsafe section names;
 - a missing, duplicate, or empty `.text` section;
-- files larger than the defensive PE32 limit of `UINT32_MAX` bytes.
+- files larger than the defensive limit of 512 MiB.
 
 The parser uses explicit little-endian reads and checked arithmetic. It never calls
 `LoadLibrary`.
@@ -115,7 +115,9 @@ Synthetic PE fixtures cover valid PE32 x86 input, truncation, PE32+, wrong machi
 missing `.text`, overflow, range overlap, read failure, Unicode paths, hashing
 failure, exact and partial matching, an empty registry, and report redaction.
 Windows tests verify the standard SHA-256 digest for `abc` and process a 1 MiB file
-through the incremental BCrypt path.
+through the incremental BCrypt path. Fingerprint creation repeats the complete
+file hash and PE layout read at the end, rejecting a file that changed during
+collection.
 
 The standalone probe was also run against its own project-built PE32 executable
 with `--json --redact-path --compare-known`. It exited successfully, emitted no

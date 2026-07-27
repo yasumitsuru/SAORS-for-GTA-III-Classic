@@ -19,8 +19,8 @@ bool isLowercaseSha256(const std::string& value) {
 bool isUsableProfile(const ExecutableProfile& profile) {
     return profile.id != ExecutableProfileId::unsupported && !profile.name.empty() &&
            isLowercaseSha256(profile.fileSha256) &&
-           isLowercaseSha256(profile.textSectionSha256) && profile.machine != 0U &&
-           profile.optionalHeaderMagic != 0U && profile.sizeOfImage != 0U &&
+           isLowercaseSha256(profile.textSectionSha256) && profile.machine == 0x014CU &&
+           profile.optionalHeaderMagic == 0x010BU && profile.sizeOfImage != 0U &&
            profile.fileSize != 0U && !profile.evidenceOrigin.empty() &&
            !profile.verificationDate.empty();
 }

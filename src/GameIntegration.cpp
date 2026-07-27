@@ -33,9 +33,8 @@ bool GameIntegration::installHooks() {
 #if defined(SAORS_ENABLE_EXPERIMENTAL_HOOKS)
     Logger::warning("Experimental hooks were requested, but no verified executable map exists; "
                     "hooks remain disabled");
-#else
-    Logger::info("Hooks: disabled");
 #endif
+    Logger::info("Hooks: disabled");
     hooksInstalled_ = false;
     return false;
 }

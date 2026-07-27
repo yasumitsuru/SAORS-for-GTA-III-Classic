@@ -4,6 +4,32 @@
 #include <utility>
 
 namespace saors {
+namespace {
+
+bool sameImageLayout(const PeImageMetadata& left, const PeImageMetadata& right) {
+    if (left.machine != right.machine ||
+        left.optionalHeaderMagic != right.optionalHeaderMagic ||
+        left.timeDateStamp != right.timeDateStamp ||
+        left.entryPointRva != right.entryPointRva ||
+        left.sizeOfImage != right.sizeOfImage || left.checksum != right.checksum ||
+        left.fileSize != right.fileSize || left.sections.size() != right.sections.size()) {
+        return false;
+    }
+    for (std::size_t index = 0; index < left.sections.size(); ++index) {
+        const auto& leftSection = left.sections[index];
+        const auto& rightSection = right.sections[index];
+        if (leftSection.name != rightSection.name ||
+            leftSection.virtualAddress != rightSection.virtualAddress ||
+            leftSection.virtualSize != rightSection.virtualSize ||
+            leftSection.rawOffset != rightSection.rawOffset ||
+            leftSection.rawSize != rightSection.rawSize) {
+            return false;
+        }
+    }
+    return true;
+}
+
+} // namespace
 
 Result<ExecutableFingerprint> fingerprintExecutable(const std::filesystem::path& path,
                                                     const PeImageReader& reader,
@@ -56,16 +82,21 @@ Result<ExecutableFingerprint> fingerprintExecutable(const std::filesystem::path&
             "unable to fingerprint the PE .text section");
     }
 
-    const auto confirmed = reader.read(path);
-    if (!confirmed || confirmed.value.fileSize != image.value.fileSize ||
-        confirmed.value.timeDateStamp != image.value.timeDateStamp ||
-        confirmed.value.checksum != image.value.checksum ||
-        confirmed.value.sections.size() != image.value.sections.size()) {
+    const auto confirmedHash = hasher.sha256File(path);
+    const auto confirmedImage = reader.read(path);
+    if (!confirmedHash || confirmedHash.value != fileHash.value || !confirmedImage ||
+        !sameImageLayout(image.value, confirmedImage.value)) {
         return Result<ExecutableFingerprint>::fail(
             "executable changed while its fingerprint was being calculated");
     }
 
     return Result<ExecutableFingerprint>::ok(std::move(fingerprint));
 }
+
+#if !defined(_WIN32)
+std::unique_ptr<FileHasher> createPlatformFileHasher() {
+    return {};
+}
+#endif
 
 } // namespace saors

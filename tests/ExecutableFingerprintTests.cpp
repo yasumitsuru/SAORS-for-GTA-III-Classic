@@ -17,10 +17,12 @@ class DeterministicHasher final : public saors::FileHasher {
     saors::Result<std::string>
     sha256File(const std::filesystem::path& path) const override {
         observedPaths.push_back(path);
+        ++fileCalls;
         if (failFile) {
             return saors::Result<std::string>::fail("synthetic full-file failure");
         }
-        return saors::Result<std::string>::ok(std::string(64U, 'a'));
+        return saors::Result<std::string>::ok(
+            std::string(64U, changeOnSecondFileHash && fileCalls > 1U ? 'd' : 'a'));
     }
 
     saors::Result<std::string> sha256Range(const std::filesystem::path& path,
@@ -39,6 +41,8 @@ class DeterministicHasher final : public saors::FileHasher {
     mutable std::vector<std::pair<std::uint64_t, std::uint64_t>> ranges;
     bool failFile{false};
     bool failRange{false};
+    bool changeOnSecondFileHash{false};
+    mutable std::size_t fileCalls{0};
 };
 
 } // namespace
@@ -84,6 +88,17 @@ TEST_CASE("Executable fingerprint propagates file and section hashing failures")
     CHECK(range.error == "synthetic range failure");
 }
 
+TEST_CASE("Executable fingerprint rejects a file that changes during collection") {
+    const saors::tests::TemporaryBinary file(saors::tests::validPe32Fixture());
+    const saors::PeImageReader reader;
+    DeterministicHasher hasher;
+    hasher.changeOnSecondFileHash = true;
+
+    const auto result = saors::fingerprintExecutable(file.path(), reader, hasher);
+    CHECK_FALSE(result);
+    CHECK(result.error == "executable changed while its fingerprint was being calculated");
+}
+
 TEST_CASE("Redacted executable reports contain hashes but no personal path") {
     saors::ExecutableFingerprint fingerprint;
     fingerprint.fileSha256 = std::string(64U, 'a');
@@ -94,7 +109,7 @@ TEST_CASE("Redacted executable reports contain hashes but no personal path") {
         {".text", 0x1000U, 0x100U, 0x200U, 0x200U, std::string(64U, 'b')});
 
     const auto personal =
-        std::filesystem::path("C:\\Users\\VisibleName\\Games\\GTA3\\gta3.exe");
+        std::filesystem::path("C:\\Private\\ExampleAccount\\Games\\GTA3\\gta3.exe");
     const saors::ExecutableReportContext context;
     const auto text =
         saors::formatExecutableTextReport(personal, fingerprint, context, true);
@@ -103,8 +118,8 @@ TEST_CASE("Redacted executable reports contain hashes but no personal path") {
 
     CHECK(text.find("[redacted]") != std::string::npos);
     CHECK(json.find("[redacted]") != std::string::npos);
-    CHECK(text.find("VisibleName") == std::string::npos);
-    CHECK(json.find("VisibleName") == std::string::npos);
+    CHECK(text.find("ExampleAccount") == std::string::npos);
+    CHECK(json.find("ExampleAccount") == std::string::npos);
     CHECK(json.find(std::string(64U, 'a')) != std::string::npos);
     CHECK(json.find("\"sections\"") != std::string::npos);
 }
