@@ -42,6 +42,7 @@ The release artifact is normally:
 
 ```text
 build/linux-mingw-x86-release/bin/SAORSForGTA3.asi
+build/linux-mingw-x86-release/bin/saors_stream_probe.exe
 ```
 
 Inspect it with `file`; it should report a PE32 Windows DLL for Intel 80386.
@@ -60,6 +61,59 @@ ctest --test-dir build/host-tests --output-on-failure
 ```
 
 CI follows this separation.
+
+## Cross-building the optional libVLC backend
+
+Supply an extracted official VLC Win32 **7z** archive containing `sdk/`, the x86
+DLLs, and `plugins/`. Do not use the Win64 archive. Configure a separate tree:
+
+```bash
+cmake -S . -B build/linux-mingw-x86-libvlc -G Ninja \
+  -DCMAKE_TOOLCHAIN_FILE=cmake/Toolchain-mingw32.cmake \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DSAORS_BUILD_ASI=ON \
+  -DSAORS_BUILD_TESTS=OFF \
+  -DSAORS_BUILD_STREAM_PROBE=ON \
+  -DSAORS_ENABLE_LIBVLC=ON \
+  -DSAORS_LIBVLC_ROOT="$PWD/build/deps/vlc-3.0.23"
+cmake --build build/linux-mingw-x86-libvlc
+file build/linux-mingw-x86-libvlc/bin/saors_stream_probe.exe
+```
+
+The backend dynamically resolves libVLC, so the resulting executable is not
+loader-dependent on an absolute developer path. The complete runtime is still
+required when the executable runs.
+
+## Wine stream-probe procedure
+
+Use a dedicated prefix and keep the VLC runtime adjacent to the probe:
+
+```bash
+mkdir -p build/wine-probe/bin/vlc
+cp build/linux-mingw-x86-libvlc/bin/saors_stream_probe.exe build/wine-probe/bin/
+cp -a build/deps/vlc-3.0.23/. build/wine-probe/bin/vlc/
+
+export WINEPREFIX="$PWD/build/wine-probe/prefix"
+export WINEARCH=win32
+wineboot -u
+WINEDEBUG=+loaddll,+seh wine \
+  build/wine-probe/bin/saors_stream_probe.exe \
+  --url "https://authorized.example/stream" \
+  --duration 30 --pause-after 10 --reconnect-after 20 \
+  2>build/wine-probe/wine.log
+```
+
+Confirm audible output and record the stream format, transport, Wine version,
+probe exit code, state sequence, and sanitized log. Test HTTP MP3, HTTPS MP3, and
+AAC separately; one result does not establish the others.
+
+For Proton, create a separate test prefix rather than reusing the game prefix.
+Invoke the same Windows executable with the Proton version selected for the game,
+capture `PROTON_LOG=1`, and keep `libvlc.dll`, `libvlccore.dll`, and `plugins/`
+together under the adjacent `vlc/` directory. Proton launch details differ between
+Steam installations, so record the exact command and version used.
+
+No Wine or Proton stream-probe result is claimed by this repository yet.
 
 ## Proton/Wine development installation
 

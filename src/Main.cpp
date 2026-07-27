@@ -1,4 +1,4 @@
-#include "saors_gta3/AudioBackend.hpp"
+#include "saors_gta3/AudioBackendFactory.hpp"
 #include "saors_gta3/Configuration.hpp"
 #include "saors_gta3/GameIntegration.hpp"
 #include "saors_gta3/Logger.hpp"
@@ -18,7 +18,7 @@ std::filesystem::path moduleDirectory(const HMODULE module) {
         if (copied == 0) {
             return std::filesystem::current_path();
         }
-        if (copied < path.size() - 1) {
+        if (static_cast<std::size_t>(copied) < path.size() - 1) {
             path.resize(copied);
             return std::filesystem::path(path).parent_path();
         }
@@ -54,8 +54,7 @@ DWORD WINAPI initializePlugin(const LPVOID parameter) {
             saors::Logger::warning(warning);
         }
 
-        const auto backend = saors::createNullAudioBackend();
-        saors::Logger::info(std::string("Audio backend: ") + backend->name());
+        const auto backend = saors::createConfiguredAudioBackend();
         static_cast<void>(game.installHooks());
     } catch (...) {
         saors::Logger::error("Unhandled exception during plugin initialization");

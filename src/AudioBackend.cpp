@@ -1,5 +1,7 @@
 #include "saors_gta3/AudioBackend.hpp"
 
+#include "saors_gta3/PlaylistParser.hpp"
+
 #include <cmath>
 #include <utility>
 
@@ -9,8 +11,8 @@ namespace {
 class NullAudioBackend final : public AudioBackend {
   public:
     bool open(const std::string& url) override {
-        if (url.empty()) {
-            lastError_ = "stream URL is empty";
+        if (!PlaylistParser::isSupportedUrl(url)) {
+            lastError_ = "stream URL must be an absolute HTTP(S) URL";
         } else {
             lastError_ = "audio backend is not configured";
         }
@@ -62,7 +64,7 @@ class NullAudioBackend final : public AudioBackend {
     }
 
     [[nodiscard]] const char* name() const noexcept override {
-        return "not configured";
+        return "null";
     }
 
   private:
