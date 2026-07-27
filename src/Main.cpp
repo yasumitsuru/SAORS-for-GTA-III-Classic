@@ -76,6 +76,7 @@ DWORD WINAPI initializePlugin(const LPVOID parameter) {
 #endif
         saors::Logger::info("Executable profile: " + game.detectedExecutableDescription());
         saors::Logger::info("Fingerprint status: " + game.fingerprintStatusDescription());
+        saors::Logger::info("Verification level: " + game.verificationStatusDescription());
         saors::Logger::info(std::string("File fingerprint match: ") +
                             booleanName(game.fileFingerprintMatch()));
         saors::Logger::info(std::string("Text fingerprint match: ") +
@@ -105,6 +106,9 @@ DWORD WINAPI initializePlugin(const LPVOID parameter) {
 #endif
         static_cast<void>(streams);
         static_cast<void>(game.installHooks());
+        saors::Logger::info("Gameplay reads: disabled");
+        saors::Logger::info("Audio playback: not started");
+        saors::Logger::info("Network activity: not started");
     } catch (...) {
         saors::Logger::error("Unhandled exception during plugin initialization");
     }

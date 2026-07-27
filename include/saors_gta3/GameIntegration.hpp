@@ -9,6 +9,7 @@ namespace saors {
 
 enum class ExecutableVersion {
     unsupported,
+    gta3_classic_local_unmapped,
     gta3_10_us_unmapped,
 };
 
@@ -28,6 +29,7 @@ class GameIntegration {
     [[nodiscard]] float radioVolume() const noexcept;
     [[nodiscard]] std::string detectedExecutableDescription() const;
     [[nodiscard]] std::string fingerprintStatusDescription() const;
+    [[nodiscard]] std::string verificationStatusDescription() const;
     [[nodiscard]] bool fileFingerprintMatch() const noexcept;
     [[nodiscard]] bool textFingerprintMatch() const noexcept;
 

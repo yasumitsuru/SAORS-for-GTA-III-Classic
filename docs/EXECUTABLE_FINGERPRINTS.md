@@ -92,17 +92,39 @@ Profiles support four evidence levels:
 | `independently_reproduced` | Another contributor reproduced it independently |
 | `verified` | Evidence and compatibility review accepted it for the stated scope |
 
-The enum reserves `gta3_10_us_candidate`, but the built-in registry intentionally
-contains **zero profiles**. No legal GTA III executable path or reproducible
-fingerprint was supplied for this phase, so nothing is marked `candidate` or
-`verified`.
+The built-in registry contains one profile:
+
+| Field | Value |
+| --- | --- |
+| ID | `gta3_classic_local_candidate` |
+| Name | `GTA III Classic local candidate` |
+| Verification | `locally_reproduced` |
+| Reproduction | Two identical local probe runs on 2026-07-27 |
+| Architecture | PE32, Intel 386 |
+| File size | 2,383,872 bytes |
+| COFF timestamp | 1,020,186,132 |
+| Entry-point RVA | 1,842,800 |
+| `SizeOfImage` | 5,775,360 |
+| PE checksum | 0 |
+| Complete SHA-256 | `ebb8cd22b88bd84b9a223aee02e67e3dc0b4acbc17d7155951e7cc02f524a343` |
+| `.text` SHA-256 | `695fe240ba96fc010b3363e64319d7327ca7f171ffa6eba50454ee37d6bbe79b` |
+
+The source was a user-supplied, Steam-managed GTA III Classic installation. It
+had no usable Windows version resource and was already used with third-party
+loaders or mods, so edition, region, and pristine-distribution provenance remain
+unverified. The profile is deliberately not labeled GTA III 1.0 US.
+
+An exact match to this profile is an identity result only. It does not verify an
+address, signature, calling convention, game-state reader, radio hook, or patch.
+The corresponding adapter remains unmapped and `installHooks()` returns `false`.
 
 ## ASI behavior and logging
 
 The initialization worker fingerprints the host and compares it with the registry.
 Normal logs contain only architecture, profile name, match booleans, match status,
-and `Hooks: disabled`. Full hashes and executable paths are not written to the
-normal ASI log.
+verification level, and explicit disabled/not-started state for hooks, gameplay
+reads, audio playback, and network activity. Full hashes and executable paths are
+not written to the normal ASI log.
 
 Configuration, the audio backend, and the playlist resolver may be constructed
 later in the worker, but fingerprinting itself starts no network request or audio.
@@ -119,9 +141,16 @@ through the incremental BCrypt path. Fingerprint creation repeats the complete
 file hash and PE layout read at the end, rejecting a file that changed during
 collection.
 
-The standalone probe was also run against its own project-built PE32 executable
-with `--json --redact-path --compare-known`. It exited successfully, emitted no
-local path, and reported profile `none`. This is not a GTA III compatibility test.
+The standalone probe was run twice against the explicitly supplied game
+executable with `--json --redact-path --compare-known`. Both reports were
+identical, exited successfully, contained no local path or raw bytes, and produced
+the profile above. After registration, the same probe reported an exact
+`locally_reproduced` identity match. A control run against the project-built
+probe itself remained safely unrecognized.
 
-Real-game validation remains pending until the user explicitly supplies a path to
-a legally obtained `gta3.exe`.
+The Windows MSVC x86 Release build passed 78 of 78 local tests with warnings as
+errors. A short ASI smoke test loaded an existing save, entered a vehicle, kept
+the original radio UI available, and closed without a residual game process.
+The ASI log confirmed exact identity, disabled hooks and gameplay reads, and no
+audio or network start. The automation did not provide an audio channel, so this
+does not add audible in-game evidence or establish hook compatibility.

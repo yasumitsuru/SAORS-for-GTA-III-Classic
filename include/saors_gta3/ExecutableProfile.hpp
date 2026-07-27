@@ -7,6 +7,7 @@ namespace saors {
 
 enum class ExecutableProfileId {
     unsupported,
+    gta3_classic_local_candidate,
     gta3_10_us_candidate,
 };
 

@@ -54,8 +54,10 @@ The probe opens the source only for reading and never copies it.
 4. Check whether known patches or loaders changed the file or `.text`.
 5. Run the report twice and require identical results.
 6. Classify a first reproduction as `candidate`.
-7. Keep the candidate unsupported even when its hashes match locally.
-8. Obtain independent reproduction before considering stronger status.
+7. Promote only to `locally_reproduced` after the same maintainer obtains an
+   identical result again.
+8. Keep the profile hook-disabled even when its hashes match locally.
+9. Obtain independent reproduction before considering stronger status.
 
 An exact fingerprint does not establish future offsets or calling conventions.
 Those need separate evidence and memory-signature validation in a later phase.
@@ -110,8 +112,21 @@ Only after the user explicitly authorizes a legal game path:
 8. confirm the game starts and closes normally;
 9. confirm no residual process remains.
 
-This smoke test is pending in Phase 3A because no explicit game path was provided.
-Do not disable antivirus protection permanently if it intervenes; record only the
+The Phase 3A.1 smoke test completed on 2026-07-27 after the user supplied an
+explicit game directory. Two redacted reports were stable, the registered local
+candidate matched exactly, the ASI loaded an existing save, and vehicle gameplay
+continued without a crash. The log reported `Hooks: disabled`, `Gameplay reads:
+disabled`, `Audio playback: not started`, and `Network activity: not started`;
+the game process had no TCP connections during the observation. The original
+radio UI remained available, but the automation had no audio channel and
+therefore did not add audible evidence. The game closed without a residual
+process, and the ASI, test INI, and generated log were removed because none
+existed before the test.
+
+The installation already contained unrelated third-party loaders or mods. This
+result is therefore a narrow coexistence and safe-initialization observation, not
+a clean-install baseline, edition claim, or hook compatibility result. Do not
+disable antivirus protection permanently if it intervenes; record only the
 behavior and use a trusted CI artifact.
 
 ## Phase 3B planning

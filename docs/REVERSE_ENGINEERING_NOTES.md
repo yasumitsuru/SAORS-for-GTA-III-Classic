@@ -2,12 +2,14 @@
 
 ## Current verified map
 
-The fingerprinting mechanism is implemented, but no real GTA III fingerprint,
-address, signature, offset, or hook is verified in this repository.
+The fingerprinting mechanism and one real GTA III Classic identity record are
+implemented. No address, signature, offset, calling convention, memory read,
+patch, or hook is verified in this repository.
 
 | Executable adapter | Fingerprint | Evidence | Hook status |
 | --- | --- | --- | --- |
-| GTA III 1.0 US | Registry empty | Explicit legal path and reproduction pending | Disabled |
+| GTA III Classic local candidate | Exact profile registered | Two identical local runs; `locally_reproduced`; edition/region unverified | Disabled; adapter unmapped |
+| GTA III 1.0 US | No exact profile | Research target; independent evidence pending | Disabled |
 
 ## Research rules
 

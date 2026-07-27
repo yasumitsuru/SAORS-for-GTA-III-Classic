@@ -126,9 +126,26 @@ const std::vector<ExecutableProfile>& ExecutableProfileRegistry::profiles() cons
 }
 
 const ExecutableProfileRegistry& defaultExecutableProfileRegistry() {
-    // Deliberately empty until a legally obtained executable is reproduced and
-    // reviewed. Enum values reserve identities; they are not evidence.
-    static const ExecutableProfileRegistry registry;
+    static const ExecutableProfileRegistry registry([] {
+        ExecutableProfile candidate;
+        candidate.id = ExecutableProfileId::gta3_classic_local_candidate;
+        candidate.name = "GTA III Classic local candidate";
+        candidate.fileSha256 = "ebb8cd22b88bd84b9a223aee02e67e3dc0b4acbc17d7155951e7cc02f524a343";
+        candidate.textSectionSha256 =
+            "695fe240ba96fc010b3363e64319d7327ca7f171ffa6eba50454ee37d6bbe79b";
+        candidate.machine = 0x014CU;
+        candidate.optionalHeaderMagic = 0x010BU;
+        candidate.timeDateStamp = 1020186132U;
+        candidate.entryPointRva = 1842800U;
+        candidate.sizeOfImage = 5775360U;
+        candidate.checksum = 0U;
+        candidate.fileSize = 2383872U;
+        candidate.verificationStatus = ExecutableVerificationStatus::locallyReproduced;
+        candidate.evidenceOrigin =
+            "Steam-managed GTA III Classic installation; two identical local probe runs";
+        candidate.verificationDate = "2026-07-27";
+        return ExecutableProfileRegistry({std::move(candidate)});
+    }());
     return registry;
 }
 

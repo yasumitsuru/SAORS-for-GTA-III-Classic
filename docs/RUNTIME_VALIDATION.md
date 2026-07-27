@@ -91,6 +91,40 @@ key. The ignored validation log was removed after this audit.
 Automated tests also cover credential and case-insensitive `token`, `key`, and
 `auth` redaction. The libVLC logger remains disabled.
 
+## Phase 3A.1 executable and ASI smoke
+
+On 2026-07-27, the MSVC Release Win32 no-libVLC build was compiled with warnings
+as errors and experimental hooks disabled. CTest passed 78 of 78 tests.
+
+The executable probe inspected only the path explicitly supplied by the user. Two
+redacted local reports were identical and contained no personal path or raw
+bytes. They established the `GTA III Classic local candidate` profile at the
+`locally_reproduced` evidence level. The executable is PE32 Intel 386, but its
+edition and region remain unverified. Exact profile matching is not an address-map
+or hook compatibility result.
+
+For a short ASI smoke test, a no-station INI and the trusted x86 artifact were
+placed beside the game executable only after confirming those filenames were
+absent. The existing save loaded, a vehicle could be entered, and the game's
+original radio UI remained available. The process remained responsive and had
+zero TCP connections during the observation. The sanitized ASI log reported:
+
+```text
+Fingerprint status: exact fingerprint match
+Verification level: locally_reproduced
+Hooks: disabled
+Gameplay reads: disabled
+Audio playback: not started
+Network activity: not started
+```
+
+The log audit found no SHA-256 value, URL, drive path, or user-directory path.
+The automation had no audio channel, so it did not verify audible in-game radio.
+The game closed normally through its window, no residual process remained, and
+the ASI, test INI, and generated log were removed to restore the prior state.
+The installation already contained unrelated third-party loader/mod components,
+so this is not a clean-install baseline.
+
 ## Prior controlled evidence
 
 Controlled localhost PCM/WAV playback previously verified lifecycle, pause,
@@ -111,11 +145,14 @@ state and reconnect behavior.
 | HLS | detected, explicitly unsupported |
 | Central DJ automatic resolution | passed |
 | Central DJ automatic AAC playback state | passed for 35 seconds |
-| Central DJ integrated audible confirmation | pending listener response |
+| Central DJ integrated audible confirmation | passed before pause, after resume, and after reconnect |
 | Pause/resume state | passed |
 | Reconnect with fresh resolution | passed |
-| Volume `0.5` application | API/state passed; integrated perception pending |
+| Volume `0.5` application | API/state and integrated human perception passed |
 | Clean shutdown | passed |
 | MP3 HTTP/HTTPS and AAC HTTPS | pending |
 | Wine/Proton | pending |
+| GTA III exact identity detection | locally reproduced; edition and region unverified |
+| GTA III no-hook ASI load and vehicle smoke | passed in one existing third-party loader/mod environment |
+| GTA III in-game audible validation | not executed by the automation |
 | GTA III hooks | not implemented |

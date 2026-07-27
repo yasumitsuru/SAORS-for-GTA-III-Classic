@@ -23,8 +23,17 @@ GameIntegration::detectExecutableVersion(const ExecutableFingerprint& fingerprin
     static_cast<void>(fingerprint);
 #endif
     detectedVersion_ = ExecutableVersion::unsupported;
-    if (match_.exact() && match_.id == ExecutableProfileId::gta3_10_us_candidate) {
-        detectedVersion_ = ExecutableVersion::gta3_10_us_unmapped;
+    if (match_.exact()) {
+        switch (match_.id) {
+        case ExecutableProfileId::gta3_classic_local_candidate:
+            detectedVersion_ = ExecutableVersion::gta3_classic_local_unmapped;
+            break;
+        case ExecutableProfileId::gta3_10_us_candidate:
+            detectedVersion_ = ExecutableVersion::gta3_10_us_unmapped;
+            break;
+        case ExecutableProfileId::unsupported:
+            break;
+        }
     }
     return detectedVersion_;
 }
@@ -61,8 +70,9 @@ float GameIntegration::radioVolume() const noexcept {
 
 std::string GameIntegration::detectedExecutableDescription() const {
     switch (detectedVersion_) {
+    case ExecutableVersion::gta3_classic_local_unmapped:
     case ExecutableVersion::gta3_10_us_unmapped:
-        return "GTA III 1.0 US candidate";
+        return match_.profileName;
     case ExecutableVersion::unsupported:
         return "unsupported";
     }
@@ -75,6 +85,15 @@ std::string GameIntegration::fingerprintStatusDescription() const {
 #else
     return "no exact profile match";
 #endif
+}
+
+std::string GameIntegration::verificationStatusDescription() const {
+#if SAORS_HAS_EXECUTABLE_FINGERPRINTING
+    if (match_.verificationStatus) {
+        return executableVerificationStatusName(*match_.verificationStatus);
+    }
+#endif
+    return "not registered";
 }
 
 bool GameIntegration::fileFingerprintMatch() const noexcept {

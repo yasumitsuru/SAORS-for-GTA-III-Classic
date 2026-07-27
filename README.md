@@ -22,9 +22,9 @@ Linux game plugin.
 | M3U/M3U8 text playlist parsing | Implemented and unit-tested |
 | PLS parsing | Implemented and unit-tested |
 | File logging | Implemented |
-| ASI initialization | Initial, safe stub |
+| ASI initialization | Safe stub; local no-hook game smoke test passed |
 | Defensive PE32 x86 fingerprinting | Implemented; parser and Windows CNG SHA-256 tested |
-| Known GTA III executable profiles | None registered; explicit legal evidence pending |
+| Known GTA III executable profiles | One locally reproduced identity profile; edition and region unverified |
 | Standalone executable probe | Implemented; explicit path, JSON, redaction, no disk search |
 | Unsupported executable handling | Implemented; no exact match means no hooks |
 | GTA III radio hooks | Planned; no verified addresses |
@@ -47,10 +47,12 @@ The first research target is:
 - 32-bit process;
 - Windows 10/11, or the Windows build running under Proton/Wine.
 
-The version is a research target, not a current compatibility claim. The plugin
-deliberately reports every executable as `unsupported` until a reproducible
-profile is registered. Even an exact candidate remains hook-disabled in Phase 3A.
-See [Executable fingerprints](docs/EXECUTABLE_FINGERPRINTS.md) and
+The version is a research target, not a current compatibility claim. The registry
+contains one locally reproduced profile named `GTA III Classic local candidate`,
+but the available evidence does not identify its edition or region. An exact
+match identifies those file bytes only: its game adapter is deliberately
+unmapped and hook-disabled in Phase 3A. See
+[Executable fingerprints](docs/EXECUTABLE_FINGERPRINTS.md) and
 [Compatibility](docs/COMPATIBILITY.md).
 
 ## How it is intended to work
@@ -135,8 +137,9 @@ The executable probe never searches for a game and never loads the inspected fil
 ```
 
 Use `--json` for JSON on stdout or `--output` for an ignored local report under
-`research/local/`. The built-in registry currently contains no GTA III profile,
-so a real game result remains pending an explicitly supplied legal path. See
+`research/local/`. The built-in registry contains one locally reproduced GTA III
+Classic identity profile. It is not a version, region, address-map, or hook
+compatibility claim. See
 [Executable research workflow](docs/EXECUTABLE_RESEARCH_WORKFLOW.md).
 
 ## Installation
@@ -186,7 +189,10 @@ reports.
 
 - libVLC is optional and is not bundled or enabled by default.
 - There are no installed game hooks or memory patches.
-- No GTA III fingerprint is registered; filename-only detection is rejected.
+- One exact GTA III Classic fingerprint is registered at the
+  `locally_reproduced` evidence level; filename-only detection is still rejected.
+- The registered executable's edition and region remain unverified, and its
+  adapter exposes no gameplay addresses.
 - Pause, reconnect, volume API calls, network-failure handling, and cooperative
   shutdown passed with a controlled localhost PCM fixture.
 - AAC over HTTP, audible pause/resume, reconnect, volume, and cooperative
@@ -203,7 +209,8 @@ reports.
 
 - Add authorized network and decoder evidence for MP3 over HTTP/HTTPS and AAC
   over HTTPS.
-- Establish and independently reproduce a legal GTA III 1.0 US candidate profile.
+- Independently reproduce the local GTA III Classic candidate and separately
+  establish evidence for the GTA III 1.0 US research target.
 - Implement read-only game-state observation behind `GameIntegration`.
 - Add guarded radio suppression/restoration with failure rollback.
 - Validate Windows 10, Windows 11, Wine, and Proton.

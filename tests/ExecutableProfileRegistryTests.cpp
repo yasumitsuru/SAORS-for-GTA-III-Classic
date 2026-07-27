@@ -26,8 +26,8 @@ saors::ExecutableFingerprint fingerprint() {
 saors::ExecutableProfile profile() {
     const auto source = fingerprint();
     saors::ExecutableProfile result;
-    result.id = saors::ExecutableProfileId::gta3_10_us_candidate;
-    result.name = "GTA III 1.0 US candidate";
+    result.id = saors::ExecutableProfileId::gta3_classic_local_candidate;
+    result.name = "GTA III Classic local candidate";
     result.fileSha256 = source.fileSha256;
     result.textSectionSha256 = source.textSectionSha256;
     result.machine = source.machine;
@@ -43,6 +43,20 @@ saors::ExecutableProfile profile() {
     return result;
 }
 
+saors::ExecutableFingerprint localCandidateFingerprint() {
+    saors::ExecutableFingerprint result;
+    result.fileSha256 = "ebb8cd22b88bd84b9a223aee02e67e3dc0b4acbc17d7155951e7cc02f524a343";
+    result.textSectionSha256 = "695fe240ba96fc010b3363e64319d7327ca7f171ffa6eba50454ee37d6bbe79b";
+    result.machine = 0x014CU;
+    result.optionalHeaderMagic = 0x010BU;
+    result.timeDateStamp = 1020186132U;
+    result.entryPointRva = 1842800U;
+    result.sizeOfImage = 5775360U;
+    result.checksum = 0U;
+    result.fileSize = 2383872U;
+    return result;
+}
+
 } // namespace
 
 TEST_CASE("Profile registry accepts only an exact full text and metadata match") {
@@ -50,12 +64,26 @@ TEST_CASE("Profile registry accepts only an exact full text and metadata match")
     const auto match = registry.match(fingerprint());
 
     CHECK(match.exact());
-    CHECK(match.id == saors::ExecutableProfileId::gta3_10_us_candidate);
+    CHECK(match.id == saors::ExecutableProfileId::gta3_classic_local_candidate);
     CHECK(match.fileFingerprintMatch);
     CHECK(match.textFingerprintMatch);
     CHECK(match.metadataMatch);
     REQUIRE(match.verificationStatus);
     CHECK(*match.verificationStatus == saors::ExecutableVerificationStatus::candidate);
+}
+
+TEST_CASE("Default registry recognizes only the locally reproduced exact fingerprint") {
+    REQUIRE(saors::defaultExecutableProfileRegistry().profiles().size() == 1U);
+    const auto match = saors::defaultExecutableProfileRegistry().match(localCandidateFingerprint());
+
+    CHECK(match.exact());
+    CHECK(match.id == saors::ExecutableProfileId::gta3_classic_local_candidate);
+    CHECK(match.profileName == "GTA III Classic local candidate");
+    CHECK(match.fileFingerprintMatch);
+    CHECK(match.textFingerprintMatch);
+    CHECK(match.metadataMatch);
+    REQUIRE(match.verificationStatus);
+    CHECK(*match.verificationStatus == saors::ExecutableVerificationStatus::locallyReproduced);
 }
 
 TEST_CASE("Profile registry reports modified full and text fingerprints as partial only") {
@@ -79,15 +107,40 @@ TEST_CASE("Profile registry reports modified full and text fingerprints as parti
     CHECK_FALSE(text.textFingerprintMatch);
 }
 
-TEST_CASE("Profile registry rejects metadata differences and unknown fingerprints") {
+TEST_CASE("Profile registry rejects each required metadata difference") {
     const saors::ExecutableProfileRegistry registry({profile()});
 
-    auto metadataChanged = fingerprint();
-    metadataChanged.entryPointRva = 0x1010U;
-    const auto metadata = registry.match(metadataChanged);
-    CHECK_FALSE(metadata.exact());
-    CHECK(metadata.kind == saors::ExecutableFingerprintMatchKind::none);
-    CHECK_FALSE(metadata.metadataMatch);
+    auto sizeChanged = fingerprint();
+    sizeChanged.fileSize += 1U;
+    CHECK_FALSE(registry.match(sizeChanged).exact());
+
+    auto timestampChanged = fingerprint();
+    timestampChanged.timeDateStamp += 1U;
+    CHECK_FALSE(registry.match(timestampChanged).exact());
+
+    auto entryPointChanged = fingerprint();
+    entryPointChanged.entryPointRva += 1U;
+    CHECK_FALSE(registry.match(entryPointChanged).exact());
+
+    auto imageSizeChanged = fingerprint();
+    imageSizeChanged.sizeOfImage += 1U;
+    CHECK_FALSE(registry.match(imageSizeChanged).exact());
+
+    auto machineChanged = fingerprint();
+    machineChanged.machine = 0x8664U;
+    CHECK_FALSE(registry.match(machineChanged).exact());
+
+    auto optionalMagicChanged = fingerprint();
+    optionalMagicChanged.optionalHeaderMagic = 0x020BU;
+    CHECK_FALSE(registry.match(optionalMagicChanged).exact());
+
+    auto checksumChanged = fingerprint();
+    checksumChanged.checksum += 1U;
+    CHECK_FALSE(registry.match(checksumChanged).exact());
+}
+
+TEST_CASE("Profile registry rejects unknown fingerprints") {
+    const saors::ExecutableProfileRegistry registry({profile()});
 
     auto unknown = fingerprint();
     unknown.fileSha256 = std::string(64U, 'e');
@@ -99,7 +152,6 @@ TEST_CASE("Profile registry rejects metadata differences and unknown fingerprint
 }
 
 TEST_CASE("Empty and malformed profile registries never recognize an executable") {
-    CHECK(saors::defaultExecutableProfileRegistry().profiles().empty());
     CHECK_FALSE(saors::ExecutableProfileRegistry{}.match(fingerprint()).exact());
 
     auto malformed = profile();
@@ -113,9 +165,10 @@ TEST_CASE("Game integration recognizes an exact candidate but keeps all hooks an
     saors::GameIntegration game(registry);
 
     CHECK(game.detectExecutableVersion(fingerprint()) ==
-          saors::ExecutableVersion::gta3_10_us_unmapped);
-    CHECK(game.detectedExecutableDescription() == "GTA III 1.0 US candidate");
+          saors::ExecutableVersion::gta3_classic_local_unmapped);
+    CHECK(game.detectedExecutableDescription() == "GTA III Classic local candidate");
     CHECK(game.fingerprintStatusDescription() == "exact fingerprint match");
+    CHECK(game.verificationStatusDescription() == "candidate");
     CHECK(game.fileFingerprintMatch());
     CHECK(game.textFingerprintMatch());
     CHECK_FALSE(game.installHooks());

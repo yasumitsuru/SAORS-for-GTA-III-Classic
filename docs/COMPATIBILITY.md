@@ -4,8 +4,9 @@
 
 | Target | Build support | Runtime status |
 | --- | --- | --- |
-| Windows x86, MSVC | Configured | ASI game smoke test pending; probes build |
-| Windows x86, MinGW cross-build | Configured | ASI game smoke test pending; probes cross-build |
+| Windows x86, MSVC | Configured | Release Win32 no-hook ASI smoke passed on the local candidate |
+| Windows x86, MinGW cross-build | Configured | Cross-build only; CI is authoritative |
+| GTA III Classic local candidate | Identity only | Exact, locally reproduced; edition/region and address map unverified |
 | GTA III 1.0 US | Research target | Unsupported; no registered fingerprint or address map |
 | GTA III 1.1 | Future | Unsupported |
 | Legacy Steam executable | Future | Unsupported |
@@ -42,5 +43,9 @@ Unknown or modified executables must:
 - retain the original radio behavior;
 - allow the game process to continue.
 
-The built-in registry currently contains zero profiles. The reserved GTA III 1.0
-US candidate enum is not a compatibility claim or evidence record.
+The built-in registry contains one exact identity profile,
+`gta3_classic_local_candidate`, at the `locally_reproduced` evidence level. Its
+edition and region are unverified. The associated adapter is deliberately
+unmapped, installs no hooks, and exposes no gameplay state. The reserved GTA III
+1.0 US candidate enum remains a research target rather than a compatibility
+claim.
