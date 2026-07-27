@@ -55,12 +55,17 @@ separate native tree with the ASI disabled:
 ```bash
 cmake -S . -B build/host-tests -G Ninja \
   -DSAORS_BUILD_ASI=OFF \
-  -DSAORS_BUILD_TESTS=ON
+  -DSAORS_BUILD_TESTS=ON \
+  -DSAORS_ENABLE_WINHTTP=OFF
 cmake --build build/host-tests
 ctest --test-dir build/host-tests --output-on-failure
 ```
 
 CI follows this separation.
+
+The MinGW i686 target enables `SAORS_ENABLE_WINHTTP` by default and links the
+Windows `winhttp` system library. Native Linux host tests compile
+`PlaylistResolver` against fake clients and never compile `WinHttpClient`.
 
 ## Cross-building the optional libVLC backend
 
@@ -114,6 +119,11 @@ together under the adjacent `vlc/` directory. Proton launch details differ betwe
 Steam installations, so record the exact command and version used.
 
 No Wine or Proton stream-probe result is claimed by this repository yet.
+
+For a station whose configured URL is a playlist, add
+`--allow-http-streams` only when its final HTTP media is intentionally accepted.
+WinHTTP behavior under Wine and Proton, including system certificate stores and
+proxy configuration, is still unverified.
 
 ## Proton/Wine development installation
 

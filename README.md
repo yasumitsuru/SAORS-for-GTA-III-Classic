@@ -29,7 +29,8 @@ Linux game plugin.
 | Standalone stream probe | Implemented; real AAC audio, controls, and shutdown manually validated |
 | AAC over HTTP playback | Manually validated with an authorized stream |
 | MP3 HTTP/HTTPS and AAC HTTPS | Pending authorized direct media URLs |
-| Remote M3U/PLS resolution | Not implemented; controlled playlist URLs do not play through the probe |
+| Remote M3U/PLS resolution | Implemented; bounded WinHTTP retrieval, relative URLs, nesting, cycles, and real HTTPS M3U validated |
+| HLS | Detected and explicitly unsupported |
 | SteamOS/Proton runtime validation | Planned |
 
 No part of the current code mutes or replaces the original game radio.
@@ -54,12 +55,15 @@ See [Compatibility](docs/COMPATIBILITY.md).
 2. The plugin reads `SAORSForGTA3.ini` and writes `SAORSForGTA3.log`.
 3. A verified game adapter observes vehicle, pause, station, and volume state.
 4. `RadioController` selects a configured online station.
-5. `StreamManager` owns exactly one stream through either `LibVlcAudioBackend` or
-   the safe `NullAudioBackend` fallback.
-6. When no safe online replacement is possible, the original radio remains active.
+5. `PlaylistResolver` downloads and validates a remote playlist, then selects one
+   final media URL.
+6. `StreamManager` owns exactly one stream through either `LibVlcAudioBackend` or
+   the safe `NullAudioBackend` fallback and resolves again on reconnect.
+7. When no safe online replacement is possible, the original radio remains active.
 
-Steps 1, 2, 4, and 5 have initial implementations. Step 3 remains inactive, so the
-backend is currently exercised through `saors_stream_probe`, not through gameplay.
+Steps 1, 2, 4, 5, and 6 have initial implementations. Step 3 remains inactive, so
+the backend is currently exercised through `saors_stream_probe`, not through
+gameplay.
 
 ## Build
 
@@ -100,7 +104,8 @@ The probe does not load GTA III or the ASI:
 
 ```powershell
 .\build\windows-msvc-x86-release\bin\Release\saors_stream_probe.exe `
-  --url "https://radio.example/stream" --duration 30 --volume 0.5 --buffer 3000
+  --url "https://www.centraldj.com.br/radios/centraldj/stream.m3u" `
+  --allow-http-streams --duration 30 --volume 0.5 --buffer 3000
 ```
 
 It reports state changes, supports pause/resume and reconnect checks, and redacts
@@ -109,6 +114,10 @@ credentials plus `token`, `key`, and `auth` query values. See
 [runtime evidence](docs/RUNTIME_VALIDATION.md) covers controlled localhost
 fixtures plus one authorized AAC/HTTP stream with human audio confirmation. It
 is not proof of MP3 or HTTPS media playback.
+
+See [Remote playlists](docs/REMOTE_PLAYLISTS.md) for WinHTTP limits, relative and
+nested playlist behavior, HLS rejection, and the distinction between a blocked
+HTTPS-to-HTTP redirect and an explicitly permitted HTTP media entry.
 
 ## Installation
 
@@ -133,13 +142,21 @@ Enabled=true
 BufferMilliseconds=3000
 Reconnect=true
 ReconnectDelayMilliseconds=5000
+ResolveRemotePlaylists=true
+PlaylistConnectTimeoutMilliseconds=5000
+PlaylistReceiveTimeoutMilliseconds=10000
+PlaylistMaximumBytes=262144
+PlaylistMaximumEntries=128
+PlaylistMaximumRedirects=5
+PlaylistMaximumDepth=3
 VolumeMultiplier=1.0
 LogLevel=info
 
 [Station.HeadRadio]
 Enabled=true
-Name=Online Radio
-URL=https://example.com/stream
+Name=Rádio Central DJ
+URL=https://www.centraldj.com.br/radios/centraldj/stream.m3u
+AllowHttp=true
 ```
 
 Do not put credentials or private tokens in a configuration file shared with bug
@@ -155,8 +172,9 @@ reports.
   shutdown passed with an authorized real stream.
 - MP3 over HTTP/HTTPS, AAC over HTTPS, and libVLC media TLS behavior remain
   unverified.
-- M3U8 parsing extracts absolute HTTP(S) entries; it is not an HLS implementation.
-- Remote M3U/PLS content is not resolved by the probe before libVLC playback.
+- Simple M3U8 radio lists are resolved; HLS is detected and rejected.
+- The target station permits final HTTP media per station. That audio is not
+  protected by TLS even though the configured playlist uses HTTPS.
 - plugin-sdk is not downloaded or linked yet.
 - Proton/Wine installation has documentation but no verified compatibility result.
 

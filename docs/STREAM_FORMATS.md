@@ -1,53 +1,49 @@
 # Stream and playlist formats
 
-## Implemented parser behavior
+## Direct media
 
-### Direct URL
+Absolute HTTP and HTTPS media URLs are supported. URL validation requires a
+non-empty authority and rejects credentials, control characters, malformed
+escapes, local paths, UNC paths, and non-HTTP schemes.
 
-Absolute `http://` and `https://` URLs with a non-empty authority are accepted.
-This is syntax validation, not a network availability or TLS test.
+The optional libVLC backend currently has real AAC-over-HTTP evidence. MP3 over
+HTTP/HTTPS and AAC over HTTPS remain pending separate authorized tests.
 
-### M3U
+## M3U and simple M3U8
 
-The parser:
+The parser reads one entry per line, ignores blank lines and `#` metadata,
+preserves order, and accepts safe absolute or relative HTTP references. Both
+`#EXTM3U` and headerless lists are supported. CRLF, LF, and a UTF-8 BOM are
+handled.
 
-- reads one entry per line;
-- ignores blank lines and lines beginning with `#`;
-- accepts more than one absolute HTTP(S) URL;
-- preserves URL order;
-- reports non-URL entries as warnings;
-- fails if no supported URL remains.
+Simple M3U8 radio lists use the same behavior. HLS tags are detected and rejected
+explicitly; SAORS does not select variants, segments, keys, or live windows.
 
-Both files with `#EXTM3U` and simple headerless lists are supported.
+## PLS
 
-### M3U8
+PLS detection uses a `.pls` path, a known PLS Content-Type, `[playlist]`, or
+`FileN=` fields. Safe `FileN` references are returned in numeric order. Title,
+length, version, and declared entry count are informational and do not override
+the configured entry limit.
 
-M3U8 text is handled with the same line parser when its content contains absolute
-HTTP(S) entries. The current code does not implement HLS manifests, variant
-selection, media segments, encryption keys, live-window refresh, or relative URL
-resolution. A future backend may hand HLS URLs to a backend with verified HLS
-support.
+## Remote resolution
 
-### PLS
+`PlaylistResolver` downloads bounded playlist text through the testable
+`HttpClient` interface. Production Windows builds use WinHTTP. It handles known
+playlist Content-Types, syntactically valid `text/plain`, redirects, relative
+references based on the final URL, nested playlists, cycles, UTF-8 validation,
+and deterministic first-usable selection.
 
-The parser detects `[playlist]`, a `.pls` source hint, or `FileN=` entries. Valid
-`FileN` HTTP(S) URLs are returned in numeric order. Title, length, version, and
-entry-count metadata are ignored.
+The resolver passes only the selected media URL to the audio backend. Reconnect
+downloads the configured playlist again. See
+[Remote playlists](REMOTE_PLAYLISTS.md) for limits and HTTP policy.
 
 ## Not implemented
 
-- fetching playlist files;
-- redirects and MIME/content-type handling;
-- relative URL resolution against a playlist URL;
-- nested playlist recursion;
-- authentication or credentials;
-- Icecast/Shoutcast metadata;
-- decoding MP3 or AAC;
-- HTTP buffering and reconnect policy.
-
-## Future network safety requirements
-
-A network implementation must set connection/read timeouts, cap response and
-metadata sizes, verify TLS certificates and hostnames, limit redirects and nesting,
-reject unexpected schemes, redact URL credentials from logs, and remain
-interruptible during plugin shutdown.
+- HLS interpretation or segment downloads;
+- authentication or credential storage;
+- Icecast/Shoutcast metadata display;
+- persistent playlist caching;
+- adaptive entry selection;
+- GTA III radio hooks;
+- verified Wine or Proton runtime support.
