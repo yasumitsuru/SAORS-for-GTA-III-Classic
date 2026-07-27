@@ -81,15 +81,15 @@ Version=2
     CHECK(result.urls.at(1) == "https://two.example.com/live");
 }
 
-TEST_CASE("Invalid playlist gives a comprehensible error") {
+TEST_CASE("Playlist parser preserves safe relative entries and ignores unsafe schemes") {
     const auto result = saors::PlaylistParser::parse(
         "#EXTM3U\nrelative/path.mp3\nftp://example.com/stream\n", "invalid.m3u");
 
-    CHECK_FALSE(result.success);
-    CHECK(result.urls.empty());
-    REQUIRE(result.errors.size() == 1);
-    CHECK(result.errors.front().find("HTTP(S)") != std::string::npos);
-    CHECK(result.warnings.size() == 2);
+    REQUIRE(result.success);
+    REQUIRE(result.urls.size() == 1);
+    CHECK(result.urls.front() == "relative/path.mp3");
+    CHECK(result.errors.empty());
+    CHECK(result.warnings.size() == 1);
 }
 
 TEST_CASE("PLS without File URL is rejected") {
@@ -116,4 +116,8 @@ TEST_CASE("Unsupported URL schemes and missing hosts are rejected") {
     CHECK_FALSE(saors::PlaylistParser::isSupportedUrl("https://"));
     CHECK_FALSE(saors::PlaylistParser::isSupportedUrl("relative/live.mp3"));
     CHECK_FALSE(saors::PlaylistParser::isSupportedUrl(""));
+    CHECK(saors::PlaylistParser::isSupportedReference("../relative/live.mp3"));
+    CHECK(saors::PlaylistParser::isSupportedReference("/absolute/live.mp3?token=public"));
+    CHECK_FALSE(saors::PlaylistParser::isSupportedReference("file:///tmp/live.mp3"));
+    CHECK_FALSE(saors::PlaylistParser::isSupportedReference(R"(C:\radio\live.mp3)"));
 }

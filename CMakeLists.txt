@@ -16,6 +16,7 @@ option(SAORS_ENABLE_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 option(SAORS_BUILD_ASI "Build the Windows x86 ASI plugin" ${WIN32})
 option(SAORS_BUILD_STREAM_PROBE "Build the standalone stream probe" ON)
 option(SAORS_ENABLE_LIBVLC "Build the optional dynamic libVLC backend" OFF)
+option(SAORS_ENABLE_WINHTTP "Build the Windows WinHTTP playlist client" ${WIN32})
 option(SAORS_ENABLE_NETWORK_TESTS "Build opt-in network playback tests" OFF)
 option(SAORS_ENABLE_EXPERIMENTAL_HOOKS "Enable unverified experimental game hooks" OFF)
 set(SAORS_LIBVLC_ROOT "" CACHE PATH "Root of an externally supplied libVLC SDK/runtime")
@@ -65,8 +66,10 @@ add_library(
         src/AudioBackend.cpp
         src/AudioBackendFactory.cpp
         src/Configuration.cpp
+        src/HttpUrl.cpp
         src/Logger.cpp
         src/PlaylistParser.cpp
+        src/PlaylistResolver.cpp
         src/RadioController.cpp
         src/StreamManager.cpp
         src/UrlSanitizer.cpp
@@ -104,7 +107,22 @@ if(SAORS_ENABLE_LIBVLC)
     set(SAORS_HAS_LIBVLC 1)
 endif()
 
-target_compile_definitions(saors_core PUBLIC SAORS_HAS_LIBVLC=${SAORS_HAS_LIBVLC})
+set(SAORS_HAS_WINHTTP 0)
+if(SAORS_ENABLE_WINHTTP)
+    if(NOT WIN32)
+        message(FATAL_ERROR "SAORS_ENABLE_WINHTTP requires a Windows target toolchain.")
+    endif()
+    target_sources(saors_core PRIVATE src/WinHttpClient.cpp)
+    target_link_libraries(saors_core PUBLIC winhttp)
+    set(SAORS_HAS_WINHTTP 1)
+endif()
+
+target_compile_definitions(
+    saors_core
+    PUBLIC
+        SAORS_HAS_LIBVLC=${SAORS_HAS_LIBVLC}
+        SAORS_HAS_WINHTTP=${SAORS_HAS_WINHTTP}
+)
 saors_enable_warnings(saors_core)
 
 if(SAORS_BUILD_ASI)
@@ -192,11 +210,22 @@ if(SAORS_BUILD_TESTS)
         saors_tests
         tests/AudioBackendFactoryTests.cpp
         tests/ConfigurationTests.cpp
+        tests/HttpUrlTests.cpp
         tests/LibVlcAudioBackendTests.cpp
         tests/PlaylistParserTests.cpp
+        tests/PlaylistResolverTests.cpp
         tests/StreamManagerTests.cpp
         tests/UrlSanitizerTests.cpp
     )
+    if(SAORS_ENABLE_WINHTTP)
+        target_sources(
+            saors_tests
+            PRIVATE
+                tests/WinHttpClientTests.cpp
+                tests/WinHttpIntegrationTests.cpp
+        )
+        target_link_libraries(saors_tests PRIVATE ws2_32)
+    endif()
     target_link_libraries(saors_tests PRIVATE saors_core Catch2::Catch2WithMain)
     if(SAORS_ENABLE_LIBVLC)
         file(TO_CMAKE_PATH "${LibVLC_RUNTIME_ROOT}" SAORS_TEST_LIBVLC_ROOT)

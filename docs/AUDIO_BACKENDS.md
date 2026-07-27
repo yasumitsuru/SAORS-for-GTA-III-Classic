@@ -69,7 +69,9 @@ supported installation.
 - `--no-video`, `--no-video-title-show`, and `--intf=dummy` disable video/UI.
 - `libvlc_media_new_location` accepts validated HTTP(S) locations.
 - `:network-caching=<milliseconds>` is attached as a trusted media option.
-- `libvlc_audio_set_volume` receives `0–100` after validating `0.0–1.0`.
+- Volume is validated as `0.0–1.0` and mapped to `0–100`. When libVLC is
+  rebuilding its audio output after reconnect, the desired value remains pending
+  and is applied on the first observed `playing` state.
 - Player state is polled and mapped to the project state enum.
 - `libvlc_media_player_set_pause`, play, and stop implement transport controls.
 - Every public operation is mutex-protected and catches exceptions.
@@ -107,9 +109,10 @@ pause/resume, stop/reopen, `0.0`/`0.3`/`1.0` volume behavior, timed shutdown,
 and cooperative interruption passed without a residual process. Controlled
 unexpected-network-stop handling also passed.
 
-The authorized station was supplied through an HTTPS M3U, but its final AAC
-media used HTTP. Direct playlist playback failed, so this does not establish
-remote-playlist or HTTPS media support.
+The public validation station is configured through an HTTPS M3U, while its final
+AAC media uses HTTP. Phase 2C now resolves that playlist before the backend and
+repeats resolution during reconnect. This establishes remote M3U resolution and
+AAC/HTTP playback, not HTTPS media playback.
 
 Real MP3 HTTP/HTTPS, AAC HTTPS, Wine, and Proton behavior remain unverified until
 matching authorized runs are completed. See [Runtime validation](RUNTIME_VALIDATION.md).

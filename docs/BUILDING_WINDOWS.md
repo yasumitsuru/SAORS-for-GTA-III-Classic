@@ -59,6 +59,7 @@ build when the target pointer size is not 32 bits.
 | `SAORS_BUILD_ASI` | `ON` for Windows targets | Build `SAORSForGTA3.asi` |
 | `SAORS_BUILD_STREAM_PROBE` | `ON` | Build the standalone stream probe |
 | `SAORS_ENABLE_LIBVLC` | `OFF` | Compile the optional dynamic libVLC backend |
+| `SAORS_ENABLE_WINHTTP` | `ON` for Windows targets | Compile native remote-playlist HTTP support |
 | `SAORS_LIBVLC_ROOT` | empty | Root of a supplied Win32 SDK/runtime |
 | `SAORS_ENABLE_NETWORK_TESTS` | `OFF` | Enable private, opt-in stream tests |
 | `SAORS_TEST_STREAM_URL` | empty | Private URL used only by opt-in tests |
@@ -143,6 +144,19 @@ The recorded Windows x86 run includes human-confirmed AAC over HTTP, pause,
 reconnect, volume, and shutdown. MP3 and HTTPS media playback still require
 separate authorized direct media URLs; an HTTPS playlist that resolves to HTTP
 does not satisfy the HTTPS media row.
+
+For the public Phase 2C station:
+
+```powershell
+.\build\windows-msvc-x86-libvlc\bin\Release\saors_stream_probe.exe `
+  --url "https://www.centraldj.com.br/radios/centraldj/stream.m3u" `
+  --allow-http-streams --duration 30 --volume 0.5 --buffer 3000
+```
+
+WinHTTP uses normal Windows certificate and hostname checks. Do not add certificate
+ignore flags. `--allow-http-streams` permits the station's unencrypted final media;
+it does not permit an HTTPS response to redirect to HTTP. See
+[Remote playlists](REMOTE_PLAYLISTS.md).
 
 ## Opt-in network test
 

@@ -5,25 +5,62 @@
 
 namespace saors {
 
-StreamManager::StreamManager(std::unique_ptr<AudioBackend> backend)
-    : backend_(backend ? std::move(backend) : createNullAudioBackend()) {}
+StreamManager::StreamManager(std::unique_ptr<AudioBackend> backend,
+                             std::shared_ptr<PlaylistResolver> resolver)
+    : backend_(backend ? std::move(backend) : createNullAudioBackend()),
+      resolver_(std::move(resolver)) {}
 
 bool StreamManager::start(const std::string& url, const float volume) {
     const std::lock_guard<std::mutex> lock(mutex_);
 
     backend_->stop();
     currentUrl_.clear();
+    configuredUrl_.clear();
+    lastResolution_.reset();
     lastError_.clear();
     volume_ = std::clamp(volume, 0.0F, 1.0F);
+    return startMediaLocked(url);
+}
 
-    if (!backend_->setBufferMilliseconds(bufferMilliseconds_) || !backend_->setVolume(volume_) ||
-        !backend_->open(url) || !backend_->play()) {
+bool StreamManager::startConfiguredUrl(const std::string& configuredUrl, const float volume,
+                                       const ResolveOptions& options) {
+    const std::lock_guard<std::mutex> lock(mutex_);
+
+    backend_->stop();
+    currentUrl_.clear();
+    configuredUrl_ = configuredUrl;
+    lastResolution_.reset();
+    lastError_.clear();
+    volume_ = std::clamp(volume, 0.0F, 1.0F);
+    resolveOptions_ = options;
+
+    if (!resolver_) {
+        lastError_ = "remote playlist resolver is unavailable";
+        return false;
+    }
+    const auto resolved = resolver_->resolve(configuredUrl, options);
+    if (!resolved) {
+        lastError_ = resolved.error;
+        return false;
+    }
+    lastResolution_ = resolved.value;
+    if (!startMediaLocked(resolved.value.mediaUrl)) {
+        lastResolution_.reset();
+        return false;
+    }
+    return true;
+}
+
+bool StreamManager::startMediaLocked(const std::string& url) {
+    if (!backend_->setBufferMilliseconds(bufferMilliseconds_) || !backend_->open(url) ||
+        !backend_->setVolume(volume_) || !backend_->play()) {
         lastError_ = backend_->lastError();
         backend_->stop();
         return false;
     }
 
     currentUrl_ = url;
+    lastError_.clear();
     return true;
 }
 
@@ -50,6 +87,8 @@ void StreamManager::stop() noexcept {
         const std::lock_guard<std::mutex> lock(mutex_);
         backend_->stop();
         currentUrl_.clear();
+        configuredUrl_.clear();
+        lastResolution_.reset();
         lastError_.clear();
     } catch (...) {
         // The host game must remain stable even during teardown.
@@ -58,21 +97,33 @@ void StreamManager::stop() noexcept {
 
 bool StreamManager::reconnect() {
     const std::lock_guard<std::mutex> lock(mutex_);
-    if (currentUrl_.empty()) {
+    if (currentUrl_.empty() && configuredUrl_.empty()) {
         lastError_ = "no stream is available to reconnect";
         return false;
     }
 
-    const auto url = currentUrl_;
+    const auto directUrl = currentUrl_;
     backend_->stop();
-    if (!backend_->setBufferMilliseconds(bufferMilliseconds_) || !backend_->setVolume(volume_) ||
-        !backend_->open(url) || !backend_->play()) {
-        lastError_ = backend_->lastError();
-        backend_->stop();
-        return false;
+    currentUrl_.clear();
+
+    std::string mediaUrl;
+    if (!configuredUrl_.empty()) {
+        if (!resolver_) {
+            lastError_ = "remote playlist resolver is unavailable";
+            return false;
+        }
+        const auto resolved = resolver_->resolve(configuredUrl_, resolveOptions_);
+        if (!resolved) {
+            lastError_ = resolved.error;
+            lastResolution_.reset();
+            return false;
+        }
+        mediaUrl = resolved.value.mediaUrl;
+        lastResolution_ = resolved.value;
+    } else {
+        mediaUrl = directUrl;
     }
-    lastError_.clear();
-    return true;
+    return startMediaLocked(mediaUrl);
 }
 
 bool StreamManager::setBufferMilliseconds(const std::uint32_t milliseconds) {
@@ -104,6 +155,16 @@ std::string StreamManager::lastError() const {
 std::string StreamManager::currentUrl() const {
     const std::lock_guard<std::mutex> lock(mutex_);
     return currentUrl_;
+}
+
+std::string StreamManager::configuredUrl() const {
+    const std::lock_guard<std::mutex> lock(mutex_);
+    return configuredUrl_;
+}
+
+std::optional<ResolvedStream> StreamManager::lastResolution() const {
+    const std::lock_guard<std::mutex> lock(mutex_);
+    return lastResolution_;
 }
 
 std::uint32_t StreamManager::bufferMilliseconds() const noexcept {

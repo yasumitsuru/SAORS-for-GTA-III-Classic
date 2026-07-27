@@ -1,7 +1,14 @@
 #include "saors_gta3/AudioBackendFactory.hpp"
+#include "saors_gta3/HttpUrl.hpp"
 #include "saors_gta3/Logger.hpp"
 #include "saors_gta3/PlaylistParser.hpp"
+#include "saors_gta3/PlaylistResolver.hpp"
+#include "saors_gta3/StreamManager.hpp"
 #include "saors_gta3/UrlSanitizer.hpp"
+
+#if SAORS_HAS_WINHTTP
+#include "saors_gta3/WinHttpClient.hpp"
+#endif
 
 #if SAORS_HAS_LIBVLC
 #include "saors_gta3/LibVlcAudioBackend.hpp"
@@ -11,7 +18,9 @@
 #include <windows.h>
 #endif
 
+#include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <charconv>
 #include <chrono>
 #include <cmath>
@@ -21,6 +30,7 @@
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -132,6 +142,9 @@ struct Options {
     std::optional<std::uint32_t> pauseAfterSeconds;
     std::optional<std::uint32_t> reconnectAfterSeconds;
     std::string logFile;
+    bool resolvePlaylists{true};
+    bool allowHttpStreams{false};
+    bool resolveOnly{false};
     bool help{false};
 };
 
@@ -191,6 +204,51 @@ std::string architectureName() {
 #endif
 }
 
+std::string configuredResourceDescription(const std::string& url) {
+    const auto parsed = saors::parseHttpUrl(url);
+    if (!parsed) {
+        return "invalid resource";
+    }
+    auto path = parsed.value.path;
+    std::transform(path.begin(), path.end(), path.begin(), [](const unsigned char character) {
+        return static_cast<char>(std::tolower(character));
+    });
+    std::string kind{"resource"};
+    if (path.size() >= 4 && path.substr(path.size() - 4) == ".m3u") {
+        kind = "M3U";
+    } else if (path.size() >= 5 && path.substr(path.size() - 5) == ".m3u8") {
+        kind = "M3U8";
+    } else if (path.size() >= 4 && path.substr(path.size() - 4) == ".pls") {
+        kind = "PLS";
+    }
+    return std::string(parsed.value.secure() ? "HTTPS " : "HTTP ") + kind;
+}
+
+void reportResolution(const saors::ResolvedStream& resolved, Output& output,
+                      const bool reconnect = false) {
+    output.line(reconnect ? "Playlist re-resolution: success" : "Playlist request: success");
+    if (!resolved.finalPlaylistUrl.empty()) {
+        output.line("Playlist type: " + resolved.playlistType);
+        output.line("Playlist content type: " + (resolved.contentType.empty()
+                                                     ? std::string{"unspecified"}
+                                                     : resolved.contentType));
+        output.line("Playlist entries: " + std::to_string(resolved.playlistEntries));
+        output.line("Selected entry index: " + std::to_string(resolved.selectedEntryIndex));
+    }
+    const auto media = saors::parseHttpUrl(resolved.mediaUrl);
+    output.line(std::string("Selected entry: ") +
+                (media && media.value.secure() ? "HTTPS media" : "HTTP media"));
+}
+
+saors::ResolveOptions resolverOptions(const Options& options) {
+    saors::ResolveOptions result;
+    result.allowHttpStreams = options.allowHttpStreams;
+#ifdef _WIN32
+    result.cancelRequested = &stopRequested;
+#endif
+    return result;
+}
+
 void printHelp() {
     std::cout << "SAORS stream probe " SAORS_STREAM_PROBE_VERSION "\n"
               << "Usage: saors_stream_probe --url <HTTP(S) URL> [options]\n\n"
@@ -201,6 +259,10 @@ void printHelp() {
               << "  --buffer <milliseconds>  Network cache duration (default: 3000)\n"
               << "  --pause-after <seconds>  Pause once, then resume after one second\n"
               << "  --reconnect-after <sec>  Stop and reopen the stream once\n"
+              << "  --resolve-playlists      Resolve remote playlists (default)\n"
+              << "  --no-resolve-playlists   Send the configured URL directly to the backend\n"
+              << "  --allow-http-streams     Allow HTTP media selected by an HTTPS playlist\n"
+              << "  --resolve-only           Resolve and validate without playing audio\n"
               << "  --log-file <path>        Duplicate sanitized output to a file\n"
               << "  --help                    Show this help\n\n"
               << "The libVLC backend is optional. Set SAORS_LIBVLC_ROOT to an extracted\n"
@@ -233,6 +295,23 @@ bool parseArguments(const int argc, char** argv, Options& options, std::string& 
         const std::string argument(argv[index]);
         if (argument == "--help" || argument == "-h") {
             options.help = true;
+            continue;
+        }
+        if (argument == "--resolve-playlists") {
+            options.resolvePlaylists = true;
+            continue;
+        }
+        if (argument == "--no-resolve-playlists") {
+            options.resolvePlaylists = false;
+            continue;
+        }
+        if (argument == "--allow-http-streams") {
+            options.allowHttpStreams = true;
+            continue;
+        }
+        if (argument == "--resolve-only") {
+            options.resolveOnly = true;
+            options.resolvePlaylists = true;
             continue;
         }
         if (index + 1 >= argc) {
@@ -287,14 +366,14 @@ bool parseArguments(const int argc, char** argv, Options& options, std::string& 
     return true;
 }
 
-bool reportBackendError(const saors::AudioBackend& backend, Output& output) {
-    const auto details = saors::sanitizeTextForLogging(backend.lastError());
+bool reportManagerError(const saors::StreamManager& streams, Output& output) {
+    const auto details = saors::sanitizeTextForLogging(streams.lastError());
     if (!details.empty()) {
         output.line("Error: " + details);
         return false;
     }
 
-    switch (backend.state()) {
+    switch (streams.state()) {
     case saors::AudioState::error:
         output.line("Error: audio backend entered an error state");
         break;
@@ -308,7 +387,7 @@ bool reportBackendError(const saors::AudioBackend& backend, Output& output) {
     return false;
 }
 
-bool waitForPlayback(saors::AudioBackend& backend, Output& output,
+bool waitForPlayback(saors::StreamManager& streams, Output& output,
                      const std::chrono::seconds timeout) {
     const auto started = Clock::now();
     const auto deadline = Clock::now() + timeout;
@@ -318,7 +397,7 @@ bool waitForPlayback(saors::AudioBackend& backend, Output& output,
             output.line("Stop requested");
             return false;
         }
-        const auto current = backend.state();
+        const auto current = streams.state();
         if (!previous || current != *previous) {
             output.line(std::string("State: ") + stateName(current));
             previous = current;
@@ -330,7 +409,7 @@ bool waitForPlayback(saors::AudioBackend& backend, Output& output,
             return true;
         }
         if (current == saors::AudioState::error || current == saors::AudioState::stopped) {
-            return reportBackendError(backend, output);
+            return reportManagerError(streams, output);
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
@@ -349,17 +428,31 @@ bool sleepInterruptibly(const std::chrono::milliseconds duration) {
     return true;
 }
 
-bool openAndPlay(saors::AudioBackend& backend, const Options& options, Output& output) {
-    output.line("Opening: " + saors::sanitizeUrlForLogging(options.url));
-    if (!backend.open(options.url) || !backend.play()) {
-        return reportBackendError(backend, output);
+bool openAndPlay(saors::StreamManager& streams, const Options& options, Output& output,
+                 const bool reconnect = false) {
+    if (reconnect) {
+        if (!streams.reconnect()) {
+            return reportManagerError(streams, output);
+        }
+    } else if (options.resolvePlaylists) {
+        if (!streams.startConfiguredUrl(options.url, options.volume, resolverOptions(options))) {
+            return reportManagerError(streams, output);
+        }
+    } else if (!streams.start(options.url, options.volume)) {
+        return reportManagerError(streams, output);
     }
-    return waitForPlayback(backend, output, std::chrono::seconds(15));
+    if (options.resolvePlaylists) {
+        const auto resolved = streams.lastResolution();
+        if (resolved) {
+            reportResolution(*resolved, output, reconnect);
+        }
+    }
+    return waitForPlayback(streams, output, std::chrono::seconds(15));
 }
 
-int finishInterrupted(saors::AudioBackend& backend, Output& output) {
-    backend.stop();
-    output.line(std::string("State: ") + stateName(backend.state()));
+int finishInterrupted(saors::StreamManager& streams, Output& output) {
+    streams.stop();
+    output.line(std::string("State: ") + stateName(streams.state()));
     output.line("Playback test interrupted cleanly");
     return 130;
 }
@@ -378,8 +471,32 @@ int runProbe(const Options& options) {
         output.line("Error: stream URL must be an absolute HTTP(S) URL");
         return 2;
     }
+    output.line("Configured resource: " + configuredResourceDescription(options.url));
 
     saors::Logger::initialize({}, saors::LogLevel::off);
+
+    std::shared_ptr<saors::PlaylistResolver> resolver;
+#if SAORS_HAS_WINHTTP
+    auto httpClient = std::make_shared<saors::WinHttpClient>();
+    resolver = std::make_shared<saors::PlaylistResolver>(std::move(httpClient));
+#else
+    if (options.resolvePlaylists) {
+        output.line("Error: remote playlist resolution is unavailable in this build");
+        return 3;
+    }
+#endif
+
+    if (options.resolveOnly) {
+        const auto resolved = resolver->resolve(options.url, resolverOptions(options));
+        if (!resolved) {
+            output.line("Error: " + saors::sanitizeTextForLogging(resolved.error));
+            return 3;
+        }
+        reportResolution(resolved.value, output);
+        output.line("Resolution completed successfully");
+        return 0;
+    }
+
     auto backend = saors::createConfiguredAudioBackend();
     output.line(std::string("Backend: ") + backend->name());
 #if SAORS_HAS_LIBVLC
@@ -390,15 +507,15 @@ int runProbe(const Options& options) {
         }
     }
 #endif
+    saors::StreamManager streams(std::move(backend), std::move(resolver));
 
-    if (!backend->setVolume(options.volume) ||
-        !backend->setBufferMilliseconds(options.bufferMilliseconds)) {
-        reportBackendError(*backend, output);
+    if (!streams.setBufferMilliseconds(options.bufferMilliseconds)) {
+        reportManagerError(streams, output);
         return 3;
     }
-    if (!openAndPlay(*backend, options, output)) {
+    if (!openAndPlay(streams, options, output)) {
         if (isStopRequested()) {
-            return finishInterrupted(*backend, output);
+            return finishInterrupted(streams, output);
         }
         return 3;
     }
@@ -413,17 +530,17 @@ int runProbe(const Options& options) {
 
         if (!pauseDone && options.pauseAfterSeconds &&
             elapsed >= std::chrono::seconds(*options.pauseAfterSeconds)) {
-            if (!backend->pause()) {
-                reportBackendError(*backend, output);
+            if (!streams.pause()) {
+                reportManagerError(streams, output);
                 return 3;
             }
-            output.line(std::string("State: ") + stateName(backend->state()));
+            output.line(std::string("State: ") + stateName(streams.state()));
             if (!sleepInterruptibly(std::chrono::seconds(1))) {
-                return finishInterrupted(*backend, output);
+                return finishInterrupted(streams, output);
             }
-            if (!backend->play() || !waitForPlayback(*backend, output, std::chrono::seconds(15))) {
+            if (!streams.resume() || !waitForPlayback(streams, output, std::chrono::seconds(15))) {
                 if (isStopRequested()) {
-                    return finishInterrupted(*backend, output);
+                    return finishInterrupted(streams, output);
                 }
                 return 3;
             }
@@ -432,32 +549,31 @@ int runProbe(const Options& options) {
 
         if (!reconnectDone && options.reconnectAfterSeconds &&
             elapsed >= std::chrono::seconds(*options.reconnectAfterSeconds)) {
-            backend->stop();
-            output.line(std::string("State: ") + stateName(backend->state()));
-            if (!openAndPlay(*backend, options, output)) {
+            output.line("Reconnect: stopping current media and resolving configured resource");
+            if (!openAndPlay(streams, options, output, true)) {
                 if (isStopRequested()) {
-                    return finishInterrupted(*backend, output);
+                    return finishInterrupted(streams, output);
                 }
                 return 3;
             }
             reconnectDone = true;
         }
 
-        const auto current = backend->state();
+        const auto current = streams.state();
         if (current == saors::AudioState::error || current == saors::AudioState::stopped) {
             output.line(std::string("State: ") + stateName(current));
-            reportBackendError(*backend, output);
+            reportManagerError(streams, output);
             return 3;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
     if (isStopRequested()) {
-        return finishInterrupted(*backend, output);
+        return finishInterrupted(streams, output);
     }
 
-    backend->stop();
-    output.line(std::string("State: ") + stateName(backend->state()));
+    streams.stop();
+    output.line(std::string("State: ") + stateName(streams.state()));
     output.line("Playback test completed successfully");
     return 0;
 }

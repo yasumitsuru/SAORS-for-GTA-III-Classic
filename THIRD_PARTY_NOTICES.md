@@ -76,3 +76,9 @@ requirements, and whether binary redistribution is permitted.
 
 CMake, Ninja, Visual Studio, MinGW-w64, Clang, Git, GitHub Actions, Wine, and
 Proton are development or runtime tools and are not redistributed by this project.
+
+## Windows system API
+
+Remote playlist retrieval uses Microsoft WinHTTP from the Windows SDK and
+operating system. No WinHTTP binary is bundled or redistributed. Native Linux
+tests use the project's `HttpClient` abstraction with deterministic fakes.

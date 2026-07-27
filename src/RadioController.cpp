@@ -40,7 +40,20 @@ void RadioController::update() {
     if (stationId != activeStationId_) {
         const float volume =
             std::clamp(game_.radioVolume() * configuration_.general.volumeMultiplier, 0.0F, 1.0F);
-        if (streams_.start(station->url, volume)) {
+        ResolveOptions options;
+        options.allowHttpStreams = station->allowHttp;
+        options.connectTimeoutMilliseconds =
+            configuration_.general.playlistConnectTimeoutMilliseconds;
+        options.receiveTimeoutMilliseconds =
+            configuration_.general.playlistReceiveTimeoutMilliseconds;
+        options.maximumPlaylistBytes = configuration_.general.playlistMaximumBytes;
+        options.maximumEntries = configuration_.general.playlistMaximumEntries;
+        options.maximumRedirects = configuration_.general.playlistMaximumRedirects;
+        options.maximumDepth = configuration_.general.playlistMaximumDepth;
+        const bool started = configuration_.general.resolveRemotePlaylists
+                                 ? streams_.startConfiguredUrl(station->url, volume, options)
+                                 : streams_.start(station->url, volume);
+        if (started) {
             activeStationId_ = stationId;
         } else {
             Logger::warning("Online station could not be started; original radio remains active");

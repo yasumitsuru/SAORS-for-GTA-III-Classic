@@ -7,19 +7,23 @@ run inside GTA III. The default path performs no memory writes and preserves the
 game's original radio when any prerequisite is missing.
 
 ```text
-INI / playlists
+INI station URL
        |
        v
-Configuration + PlaylistParser
+Configuration
        |
        v
 RadioController <---- GameIntegration (verified adapters only)
        |
        v
-StreamManager ----> AudioBackendFactory ----> LibVlcAudioBackend (optional)
-                         |                \--> NullAudioBackend (safe fallback)
-                         |
-saors_stream_probe ------+
+StreamManager ----> PlaylistResolver ----> HttpClient ----> WinHTTP
+       |                    |
+       |                    \----> PlaylistParser + URI resolution
+       v
+AudioBackendFactory ----> LibVlcAudioBackend (optional)
+       |              \---> NullAudioBackend (safe fallback)
+       |
+saors_stream_probe
        |
        +---- backend failure ----> original game radio remains active
 ```
@@ -34,10 +38,22 @@ missing sections, and never evaluates environment variables or includes other fi
 
 ### PlaylistParser
 
-`PlaylistParser` accepts direct HTTP/HTTPS URLs, line-oriented M3U/M3U8 content,
-and numbered PLS `FileN` entries. It performs syntax-level URL validation only.
-Downloading content, MIME detection, redirects, decoding, and TLS are delegated to
-the selected audio backend. HLS interpretation is not implemented by the parser.
+`PlaylistParser` accepts direct HTTP/HTTPS URLs, safe absolute or relative
+M3U/M3U8 entries, and numbered PLS `FileN` entries. It remains network-independent.
+HLS interpretation is not implemented.
+
+### PlaylistResolver and HttpClient
+
+`PlaylistResolver` owns remote-resource classification and bounded playlist
+resolution. It detects playlists by extension and Content-Type, validates UTF-8,
+rejects HLS, resolves relative entries against the final post-redirect URL, limits
+entries and nesting, detects cycles, and selects the first usable entry.
+
+`HttpClient` keeps this logic testable on Linux and with deterministic fakes.
+Windows production builds use `WinHttpClient`, a synchronous RAII wrapper around
+WinHTTP with system TLS validation, timeouts, response-size and redirect limits,
+and cooperative cancellation checks. HTTPS-to-HTTP redirects are blocked. An
+HTTP entry from an HTTPS playlist is a separate per-station policy.
 
 ### AudioBackend
 
@@ -69,14 +85,17 @@ central URL sanitizer from exposing user info or sensitive query values.
 ### Stream probe
 
 `saors_stream_probe` links only to `saors_core`. It never loads GTA III or
-`GameIntegration`. It is the required validation surface for real streams,
+`GameIntegration`. It resolves playlists by default and supports resolution-only
+and direct-backend modes. It is the required validation surface for real streams,
 pause/resume, reconnect, shutdown, and Wine/Proton before gameplay integration.
 
 ### StreamManager
 
 `StreamManager` serializes access to one backend and prevents two active streams.
-It tracks the selected URL, volume, errors, and an explicit reconnect operation.
-Timed reconnect and buffer policy will be added alongside the real backend.
+It stores the configured URL separately from the in-memory selected media URL.
+Starting a configured resource resolves it before opening the backend. Reconnect
+stops playback, downloads and resolves again under the same mutex, and opens the
+new selection. No body or resolved URL is written to disk.
 
 ### GameIntegration
 
@@ -98,9 +117,10 @@ returns no in-game state. It never mutes the original radio in this milestone.
 
 `DllMain` disables thread notifications and starts a short initialization worker.
 The worker resolves paths relative to the plugin module, reads configuration, logs
-the version and unsupported-executable state, asks `AudioBackendFactory` for a
-backend, and leaves hooks disabled. External-library exceptions are contained so
-that initialization failure cannot escape into the host process.
+the version and unsupported-executable state, constructs the resolver and backend,
+and leaves hooks disabled. It performs no HTTP request and starts no playback.
+External-library exceptions are contained so initialization failure cannot escape
+into the host process.
 
 ## Threading and lifetime
 
@@ -112,9 +132,11 @@ explicit stop signal and bounded shutdown before unload.
 ## Security boundaries
 
 - Playlist and INI text are untrusted input.
-- Only absolute HTTP(S) URLs cross the backend boundary.
-- libVLC owns protocol, TLS, redirect, decoder, and audio-device behavior; each
-  release configuration still needs real-stream validation.
+- WinHTTP owns playlist HTTP/TLS; normal certificate and hostname validation is
+  never disabled.
+- Only a validated final absolute HTTP(S) media URL crosses the backend boundary.
+- libVLC owns media transport, decoding, and audio-device behavior; each release
+  configuration still needs real-stream validation.
 - Executable detection must use verified fingerprints before any address is read.
 - Hook installation must be transactional and support rollback.
 - Logs must not record credentials embedded in stream URLs.
