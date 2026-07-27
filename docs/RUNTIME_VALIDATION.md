@@ -78,11 +78,8 @@ had no active audio output immediately after stop. The final implementation
 stores the desired volume while output is unavailable and applies it on the first
 observed `playing` state. The corrected run above is the recorded result.
 
-Human audio confirmation for this exact integrated Phase 2C run is pending the
-listener's response. Earlier backend-only AAC/HTTP tests, where the entry was
-resolved outside the product, had human-confirmed continuous audio, pause/resume,
-reconnect, and volume differences; those earlier results are not silently reused
-as confirmation of the new integrated run.
+Integrated Central DJ playback was human-confirmed before pause, after resume,
+and after playlist re-resolution/reconnection.
 
 ## Sanitization
 
