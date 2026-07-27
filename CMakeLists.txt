@@ -15,8 +15,14 @@ option(SAORS_BUILD_TESTS "Build host-runnable unit tests" ON)
 option(SAORS_ENABLE_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 option(SAORS_BUILD_ASI "Build the Windows x86 ASI plugin" ${WIN32})
 option(SAORS_BUILD_STREAM_PROBE "Build the standalone stream probe" ON)
+option(SAORS_BUILD_EXE_PROBE "Build the standalone executable probe" ${WIN32})
 option(SAORS_ENABLE_LIBVLC "Build the optional dynamic libVLC backend" OFF)
 option(SAORS_ENABLE_WINHTTP "Build the Windows WinHTTP playlist client" ${WIN32})
+option(
+    SAORS_ENABLE_EXECUTABLE_FINGERPRINTING
+    "Build defensive PE executable fingerprinting support"
+    ON
+)
 option(SAORS_ENABLE_NETWORK_TESTS "Build opt-in network playback tests" OFF)
 option(SAORS_ENABLE_EXPERIMENTAL_HOOKS "Enable unverified experimental game hooks" OFF)
 set(SAORS_LIBVLC_ROOT "" CACHE PATH "Root of an externally supplied libVLC SDK/runtime")
@@ -70,6 +76,7 @@ add_library(
         src/Logger.cpp
         src/PlaylistParser.cpp
         src/PlaylistResolver.cpp
+        src/PeImageReader.cpp
         src/RadioController.cpp
         src/StreamManager.cpp
         src/UrlSanitizer.cpp
