@@ -24,9 +24,15 @@ content, tokens, or third-party binaries.
 
 ## Security posture
 
-The current milestone performs no network requests and installs no game hooks.
-Future networking must validate TLS and bound input sizes. Future executable
-adapters must verify fingerprints and expected bytes before any memory operation,
-then roll back completely on failure.
+The current milestone can perform bounded remote-playlist requests through
+WinHTTP, with normal TLS validation and explicit HTTP-media policy. Fingerprinting
+itself performs no network request and never uploads an executable.
+
+The project installs no game hooks. Phase 3A parses bounded PE32 x86 metadata and
+uses Windows CNG SHA-256, but the built-in executable registry remains empty.
+Unknown, modified, partially matching, or unreadable executables receive no
+gameplay read or memory write. Future adapters must verify exact fingerprints and
+expected in-memory bytes before any operation, then roll back completely on
+failure.
 
 This policy is not a promise of compatibility or a warranty; see the MIT License.

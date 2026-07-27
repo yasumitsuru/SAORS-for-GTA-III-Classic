@@ -43,6 +43,7 @@ The release artifact is normally:
 ```text
 build/linux-mingw-x86-release/bin/SAORSForGTA3.asi
 build/linux-mingw-x86-release/bin/saors_stream_probe.exe
+build/linux-mingw-x86-release/bin/saors_exe_probe.exe
 ```
 
 Inspect it with `file`; it should report a PE32 Windows DLL for Intel 80386.
@@ -56,6 +57,7 @@ separate native tree with the ASI disabled:
 cmake -S . -B build/host-tests -G Ninja \
   -DSAORS_BUILD_ASI=OFF \
   -DSAORS_BUILD_TESTS=ON \
+  -DSAORS_BUILD_EXE_PROBE=OFF \
   -DSAORS_ENABLE_WINHTTP=OFF
 cmake --build build/host-tests
 ctest --test-dir build/host-tests --output-on-failure
@@ -65,7 +67,9 @@ CI follows this separation.
 
 The MinGW i686 target enables `SAORS_ENABLE_WINHTTP` by default and links the
 Windows `winhttp` system library. Native Linux host tests compile
-`PlaylistResolver` against fake clients and never compile `WinHttpClient`.
+`PlaylistResolver` against fake clients and executable fingerprinting against a
+fake `FileHasher`; they never compile `WinHttpClient` or the Windows BCrypt
+implementation.
 
 ## Cross-building the optional libVLC backend
 

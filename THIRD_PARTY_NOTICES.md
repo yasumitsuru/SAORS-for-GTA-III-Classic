@@ -82,3 +82,8 @@ Proton are development or runtime tools and are not redistributed by this projec
 Remote playlist retrieval uses Microsoft WinHTTP from the Windows SDK and
 operating system. No WinHTTP binary is bundled or redistributed. Native Linux
 tests use the project's `HttpClient` abstraction with deterministic fakes.
+
+Executable SHA-256 uses Microsoft CNG/BCrypt from the Windows SDK and operating
+system. The implementation streams file data through the system provider; no
+cryptographic library or game executable is bundled. Native Linux tests use the
+`FileHasher` interface with deterministic fakes.

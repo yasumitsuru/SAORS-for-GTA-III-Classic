@@ -7,6 +7,16 @@ run inside GTA III. The default path performs no memory writes and preserves the
 game's original radio when any prerequisite is missing.
 
 ```text
+explicit file / ASI host
+       |
+       v
+PeImageReader ---> FileHasher / Windows CNG
+       |                    |
+       +----> ExecutableFingerprint ---> ExecutableProfileRegistry
+                                           |
+                                           v
+                                  GameIntegration (hooks disabled)
+
 INI station URL
        |
        v
@@ -99,9 +109,21 @@ new selection. No body or resolved URL is written to disk.
 
 ### GameIntegration
 
-This is the only component allowed to know executable fingerprints, addresses,
-calling conventions, or hook implementations. Its current table is intentionally
-empty. Every query returns a safe sentinel and hook installation returns `false`.
+This is the only component that may eventually know executable profiles,
+addresses, calling conventions, or hooks. Phase 3A gives it an exact profile match
+result, but the default registry is intentionally empty. Every gameplay query
+returns its existing safe placeholder and hook installation returns `false`.
+
+### Executable fingerprinting
+
+`PeImageReader` defensively parses only the bounded PE32 x86 metadata needed for
+identity. `FileHasher` abstracts full-file and range SHA-256; Windows uses
+incremental CNG/BCrypt while Linux tests inject deterministic fakes.
+
+`ExecutableProfileRegistry` requires exact full-file hash, `.text` hash, and
+metadata equality. A structural-only match is diagnostic and unsupported.
+`saors_exe_probe` accepts one explicit path, produces text or JSON, and supports
+path redaction. It never searches disks, loads the image, or copies it.
 
 plugin-sdk is a candidate implementation aid for future verified GTA III adapters.
 It is not required for parsing, configuration, tests, or the current stub ASI, and
@@ -116,9 +138,10 @@ returns no in-game state. It never mutes the original radio in this milestone.
 ### ASI entry point
 
 `DllMain` disables thread notifications and starts a short initialization worker.
-The worker resolves paths relative to the plugin module, reads configuration, logs
-the version and unsupported-executable state, constructs the resolver and backend,
-and leaves hooks disabled. It performs no HTTP request and starts no playback.
+The worker resolves the host executable path, creates its fingerprint, compares the
+empty-by-default profile registry, and logs only sanitized match state. It then
+reads configuration and constructs the resolver and backend while leaving hooks
+disabled. Fingerprinting performs no HTTP request and starts no playback.
 External-library exceptions are contained so initialization failure cannot escape
 into the host process.
 
@@ -137,6 +160,8 @@ explicit stop signal and bounded shutdown before unload.
 - Only a validated final absolute HTTP(S) media URL crosses the backend boundary.
 - libVLC owns media transport, decoding, and audio-device behavior; each release
   configuration still needs real-stream validation.
-- Executable detection must use verified fingerprints before any address is read.
+- Executable identity requires exact file, `.text`, and structural matching; the
+  fingerprint still does not validate any future offset.
+- Unknown or modified executables receive no gameplay read or memory write.
 - Hook installation must be transactional and support rollback.
 - Logs must not record credentials embedded in stream URLs.

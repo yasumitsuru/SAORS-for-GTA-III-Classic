@@ -5,9 +5,9 @@ classic 32-bit Windows release of Grand Theft Auto III.
 
 > [!IMPORTANT]
 > This project is in an early audio-prototype milestone. Configuration, playlist
-> parsing, logging, safe ASI initialization, an optional libVLC backend, a
-> standalone stream probe, tests, and build automation exist. GTA III radio hooks
-> do not.
+> parsing, logging, safe ASI initialization, defensive executable fingerprinting,
+> optional libVLC, standalone probes, tests, and build automation exist. GTA III
+> radio hooks do not.
 
 The final plugin is a Windows x86 DLL named `SAORSForGTA3.asi`. SteamOS support
 means running that same Windows build through Proton/Wine; this is not a native
@@ -23,7 +23,10 @@ Linux game plugin.
 | PLS parsing | Implemented and unit-tested |
 | File logging | Implemented |
 | ASI initialization | Initial, safe stub |
-| Unsupported executable handling | Implemented |
+| Defensive PE32 x86 fingerprinting | Implemented; parser and Windows CNG SHA-256 tested |
+| Known GTA III executable profiles | None registered; explicit legal evidence pending |
+| Standalone executable probe | Implemented; explicit path, JSON, redaction, no disk search |
+| Unsupported executable handling | Implemented; no exact match means no hooks |
 | GTA III radio hooks | Planned; no verified addresses |
 | Optional libVLC backend | Implemented; Windows x86 build, offline lifecycle, localhost, and authorized AAC/HTTP runtime tested |
 | Standalone stream probe | Implemented; real AAC audio, controls, and shutdown manually validated |
@@ -45,23 +48,26 @@ The first research target is:
 - Windows 10/11, or the Windows build running under Proton/Wine.
 
 The version is a research target, not a current compatibility claim. The plugin
-deliberately reports every executable as `unsupported or not yet mapped` until a
-reproducible, independently verified version fingerprint and hook map are reviewed.
-See [Compatibility](docs/COMPATIBILITY.md).
+deliberately reports every executable as `unsupported` until a reproducible
+profile is registered. Even an exact candidate remains hook-disabled in Phase 3A.
+See [Executable fingerprints](docs/EXECUTABLE_FINGERPRINTS.md) and
+[Compatibility](docs/COMPATIBILITY.md).
 
 ## How it is intended to work
 
 1. Ultimate ASI Loader loads `SAORSForGTA3.asi` into the 32-bit game process.
-2. The plugin reads `SAORSForGTA3.ini` and writes `SAORSForGTA3.log`.
-3. A verified game adapter observes vehicle, pause, station, and volume state.
-4. `RadioController` selects a configured online station.
-5. `PlaylistResolver` downloads and validates a remote playlist, then selects one
+2. Its initialization worker fingerprints the host PE32 x86 executable and
+   compares it with an exact profile registry.
+3. The plugin reads `SAORSForGTA3.ini` and writes `SAORSForGTA3.log`.
+4. A future verified game adapter observes vehicle, pause, station, and volume.
+5. `RadioController` selects a configured online station.
+6. `PlaylistResolver` downloads and validates a remote playlist, then selects one
    final media URL.
-6. `StreamManager` owns exactly one stream through either `LibVlcAudioBackend` or
+7. `StreamManager` owns exactly one stream through either `LibVlcAudioBackend` or
    the safe `NullAudioBackend` fallback and resolves again on reconnect.
-7. When no safe online replacement is possible, the original radio remains active.
+8. When no safe online replacement is possible, the original radio remains active.
 
-Steps 1, 2, 4, 5, and 6 have initial implementations. Step 3 remains inactive, so
+Steps 1, 2, 3, 5, 6, and 7 have initial implementations. Step 4 remains inactive, so
 the backend is currently exercised through `saors_stream_probe`, not through
 gameplay.
 
@@ -119,6 +125,20 @@ See [Remote playlists](docs/REMOTE_PLAYLISTS.md) for WinHTTP limits, relative an
 nested playlist behavior, HLS rejection, and the distinction between a blocked
 HTTPS-to-HTTP redirect and an explicitly permitted HTTP media entry.
 
+## Standalone executable probe
+
+The executable probe never searches for a game and never loads the inspected file:
+
+```powershell
+.\build\windows-msvc-x86-release\bin\Release\saors_exe_probe.exe `
+  --exe "C:\Games\GTA3\gta3.exe" --redact-path --compare-known
+```
+
+Use `--json` for JSON on stdout or `--output` for an ignored local report under
+`research/local/`. The built-in registry currently contains no GTA III profile,
+so a real game result remains pending an explicitly supplied legal path. See
+[Executable research workflow](docs/EXECUTABLE_RESEARCH_WORKFLOW.md).
+
 ## Installation
 
 There is no supported gameplay release yet. For development smoke tests only:
@@ -166,6 +186,7 @@ reports.
 
 - libVLC is optional and is not bundled or enabled by default.
 - There are no installed game hooks or memory patches.
+- No GTA III fingerprint is registered; filename-only detection is rejected.
 - Pause, reconnect, volume API calls, network-failure handling, and cooperative
   shutdown passed with a controlled localhost PCM fixture.
 - AAC over HTTP, audible pause/resume, reconnect, volume, and cooperative
@@ -182,7 +203,7 @@ reports.
 
 - Add authorized network and decoder evidence for MP3 over HTTP/HTTPS and AAC
   over HTTPS.
-- Establish legal, reproducible GTA III 1.0 US executable fingerprints.
+- Establish and independently reproduce a legal GTA III 1.0 US candidate profile.
 - Implement read-only game-state observation behind `GameIntegration`.
 - Add guarded radio suppression/restoration with failure rollback.
 - Validate Windows 10, Windows 11, Wine, and Proton.

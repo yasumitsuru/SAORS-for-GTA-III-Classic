@@ -2,12 +2,12 @@
 
 ## Current verified map
 
-No executable fingerprints, addresses, signatures, offsets, or hooks are verified
-in this repository.
+The fingerprinting mechanism is implemented, but no real GTA III fingerprint,
+address, signature, offset, or hook is verified in this repository.
 
 | Executable adapter | Fingerprint | Evidence | Hook status |
 | --- | --- | --- | --- |
-| GTA III 1.0 US | Not recorded | Pending | Disabled |
+| GTA III 1.0 US | Registry empty | Explicit legal path and reproduction pending | Disabled |
 
 ## Research rules
 
@@ -49,3 +49,7 @@ Copyright and disclosure review:
 7. Perform game smoke tests on a disposable backup before requesting review.
 
 Never fill a missing address with an estimate or a value copied without provenance.
+
+Phase 3B may evaluate pinned `plugin_III` support from plugin-sdk only after an
+exact commit and license review. Every consumed symbol and address must be audited,
+validated on an exactly recognized executable, and protected by a safe fallback.
