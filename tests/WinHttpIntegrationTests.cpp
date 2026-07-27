@@ -131,6 +131,9 @@ class LocalHttpServer {
         if (path == "/redirect") {
             return {302, "Found", "text/plain", {}, "/list.m3u"};
         }
+        if (path == "/redirect-loop") {
+            return {302, "Found", "text/plain", {}, "/redirect-loop"};
+        }
         if (path == "/cycle-a.m3u") {
             return {200, "OK", "audio/x-mpegurl", "cycle-b.m3u\n", {}};
         }
@@ -204,6 +207,12 @@ TEST_CASE("WinHTTP follows safe local redirects and enforces response limits") {
     CHECK(redirected.value.statusCode == 200);
     CHECK(redirected.value.finalUrl == server.url("/list.m3u"));
     CHECK(redirected.value.redirectCount == 1);
+
+    saors::HttpRequestOptions noRedirects;
+    noRedirects.maximumRedirects = 0;
+    const auto redirectLimit = client.get(server.url("/redirect-loop"), noRedirects);
+    CHECK_FALSE(redirectLimit);
+    CHECK(redirectLimit.error == "HTTP redirect limit exceeded");
 
     saors::HttpRequestOptions limited;
     limited.maximumResponseBytes = 1024;

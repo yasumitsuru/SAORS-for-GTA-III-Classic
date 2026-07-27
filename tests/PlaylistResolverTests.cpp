@@ -268,10 +268,26 @@ TEST_CASE("Playlist limits statuses transport errors cancellation BOM and UTF-8 
         auto client = std::make_shared<FakeHttpClient>();
         client->respond("https://radio.example.com/missing.m3u",
                         response("https://radio.example.com/missing.m3u", "text/plain", {}, 404));
+        client->respond("https://radio.example.com/error.m3u",
+                        response("https://radio.example.com/error.m3u", "text/plain", {}, 500));
         saors::PlaylistResolver resolver(client);
-        const auto result = resolver.resolve("https://radio.example.com/missing.m3u");
+        const auto missing = resolver.resolve("https://radio.example.com/missing.m3u");
+        CHECK_FALSE(missing);
+        CHECK(missing.error == "playlist request returned HTTP status 404");
+        const auto error = resolver.resolve("https://radio.example.com/error.m3u");
+        CHECK_FALSE(error);
+        CHECK(error.error == "playlist request returned HTTP status 500");
+    }
+
+    SECTION("empty playlists fail explicitly") {
+        auto client = std::make_shared<FakeHttpClient>();
+        client->respond(
+            "https://radio.example.com/empty.m3u",
+            response("https://radio.example.com/empty.m3u", "audio/x-mpegurl", "\r\n#EXTM3U\r\n"));
+        saors::PlaylistResolver resolver(client);
+        const auto result = resolver.resolve("https://radio.example.com/empty.m3u");
         CHECK_FALSE(result);
-        CHECK(result.error == "playlist request returned HTTP status 404");
+        CHECK(result.error == "playlist contains no usable stream");
     }
 
     SECTION("transport and cancellation errors remain sanitized") {
