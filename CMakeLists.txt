@@ -72,6 +72,7 @@ add_library(
         src/AudioBackend.cpp
         src/AudioBackendFactory.cpp
         src/Configuration.cpp
+        src/GameIntegration.cpp
         src/HttpUrl.cpp
         src/Logger.cpp
         src/PlaylistParser.cpp
@@ -164,7 +165,6 @@ if(SAORS_BUILD_ASI)
     add_library(
         SAORSForGTA3
         SHARED
-            src/GameIntegration.cpp
             src/Main.cpp
     )
     target_link_libraries(SAORSForGTA3 PRIVATE saors_core)
@@ -275,6 +275,16 @@ if(SAORS_BUILD_TESTS)
         tests/StreamManagerTests.cpp
         tests/UrlSanitizerTests.cpp
     )
+    if(SAORS_ENABLE_EXECUTABLE_FINGERPRINTING)
+        target_sources(
+            saors_tests
+            PRIVATE
+                tests/ExecutableFingerprintTests.cpp
+                tests/ExecutableProfileRegistryTests.cpp
+                tests/PeImageReaderTests.cpp
+                tests/WindowsFileHasherTests.cpp
+        )
+    endif()
     if(SAORS_ENABLE_WINHTTP)
         target_sources(
             saors_tests
