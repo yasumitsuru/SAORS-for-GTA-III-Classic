@@ -193,6 +193,24 @@ TEST_CASE("Relative entries use the redirected final playlist URL") {
     CHECK(result.value.mediaUrl == "https://cdn.example.com/radio/live/audio%20one.aac?x=1");
 }
 
+TEST_CASE("Redirect transport downgrade is rejected independently of the HTTP client") {
+    auto downgradeClient = std::make_shared<FakeHttpClient>();
+    downgradeClient->respond("https://radio.example.com/listen",
+                             response("http://radio.example.com/list.m3u", "audio/x-mpegurl"));
+    saors::PlaylistResolver downgradeResolver(downgradeClient);
+    const auto downgrade = downgradeResolver.resolve("https://radio.example.com/listen");
+    CHECK_FALSE(downgrade);
+    CHECK(downgrade.error == "HTTPS to HTTP redirect is blocked");
+
+    auto upgradeClient = std::make_shared<FakeHttpClient>();
+    upgradeClient->respond("http://radio.example.com/listen",
+                           response("https://radio.example.com/live", "audio/aac"));
+    saors::PlaylistResolver upgradeResolver(upgradeClient);
+    const auto upgrade = upgradeResolver.resolve("http://radio.example.com/listen");
+    REQUIRE(upgrade);
+    CHECK(upgrade.value.mediaUrl == "https://radio.example.com/live");
+}
+
 TEST_CASE("Nested M3U to PLS resolution is bounded and detects cycles") {
     auto nestedClient = std::make_shared<FakeHttpClient>();
     nestedClient->respond(

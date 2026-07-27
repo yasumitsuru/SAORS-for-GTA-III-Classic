@@ -172,6 +172,10 @@ class ResolutionAttempt {
 
   private:
     Result<HttpResponse> request(const std::string& url, const bool readBody) {
+        const auto requestedUrl = parseHttpUrl(url);
+        if (!requestedUrl) {
+            return Result<HttpResponse>::fail("HTTP request URL is invalid");
+        }
         const auto response = client_.get(url, requestOptions(options_, readBody));
         if (!response) {
             return Result<HttpResponse>::fail(response.error);
@@ -186,6 +190,9 @@ class ResolutionAttempt {
         const auto finalUrl = parseHttpUrl(response.value.finalUrl);
         if (!finalUrl) {
             return Result<HttpResponse>::fail("HTTP client returned an invalid final URL");
+        }
+        if (requestedUrl.value.secure() && !finalUrl.value.secure()) {
+            return Result<HttpResponse>::fail("HTTPS to HTTP redirect is blocked");
         }
         auto normalized = response.value;
         normalized.finalUrl = finalUrl.value.normalized;
