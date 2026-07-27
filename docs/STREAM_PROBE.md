@@ -76,7 +76,7 @@ Run each row separately and keep the raw result private if the URL is private:
 | --- | --- | --- | --- | --- | --- | --- |
 | Windows x86 | HTTP | MP3 | pending | pending | pending | pending |
 | Windows x86 | HTTPS | MP3 | pending | pending | pending | pending |
-| Windows x86 | HTTP or HTTPS | AAC | pending | pending | pending | pending |
+| Windows x86 | HTTP media from an HTTPS playlist | AAC | passed | passed | passed | passed |
 | Wine win32 prefix | repeat applicable rows | | pending | pending | pending | pending |
 | Separate Proton prefix | repeat applicable rows | | pending | pending | pending | pending |
 
@@ -94,11 +94,13 @@ The automated network test is disabled by default. It runs only when configured
 with both `SAORS_ENABLE_NETWORK_TESTS=ON` and a private
 `SAORS_TEST_STREAM_URL`. Standard pull-request workflows never enable it.
 
-No real stream or Wine/Proton result has been recorded for 0.2.0-dev yet.
+Authorized AAC over HTTP reached `playing` for 30 seconds with human-confirmed
+audio. Pause/resume, stop/reopen, `0.0`/`0.3`/`1.0` volume behavior, timed
+shutdown, and cooperative interruption were also human or operationally
+confirmed. Controlled localhost failure checks and exact evidence are recorded
+in [Runtime validation](RUNTIME_VALIDATION.md).
 
-Controlled localhost PCM playback, control operations, failure handling, and
-shutdown results are recorded in [Runtime validation](RUNTIME_VALIDATION.md).
-They do not change the pending real-stream rows above.
+MP3, HTTPS media playback, Wine, and Proton remain pending.
 
 ## Remote playlists
 
@@ -106,6 +108,10 @@ The CLI accepts an absolute HTTP(S) URL even when it returns M3U or PLS content.
 It does not download that text or call `PlaylistParser::parse()`. Controlled
 absolute, relative, and multiple-entry fixtures did not reach `playing` through
 raw libVLC media playback.
+
+An authorized real HTTPS M3U with one AAC/HTTP entry also failed when passed
+directly to the probe. Resolving the entry outside the product enabled backend
+validation only and is not a remote-playlist implementation.
 
 Remote playlist support is therefore pending **Phase 2C —
 RemotePlaylistResolver**. Local parser unit tests are not evidence of remote

@@ -139,6 +139,11 @@ record codecs from an authoritative stream description or a suitable inspection
 tool. See [Runtime validation](RUNTIME_VALIDATION.md) for the current evidence
 and pending rows.
 
+The recorded Windows x86 run includes human-confirmed AAC over HTTP, pause,
+reconnect, volume, and shutdown. MP3 and HTTPS media playback still require
+separate authorized direct media URLs; an HTTPS playlist that resolves to HTTP
+does not satisfy the HTTPS media row.
+
 ## Opt-in network test
 
 Only enable this with a stream you are authorized to use:

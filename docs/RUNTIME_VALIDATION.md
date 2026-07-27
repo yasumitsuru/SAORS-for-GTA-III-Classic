@@ -7,7 +7,7 @@ not convert a libVLC `playing` state into an audible-output claim.
 
 | Item | Value |
 | --- | --- |
-| Date | 2026-07-26 |
+| Dates | 2026-07-26 local fixtures; 2026-07-27 authorized AAC stream |
 | Runtime commit | `14b4a7d32e0f2695fcbda7979dea4405c5c54eba` |
 | Platform | Windows 10 Pro 25H2, build 26200.8894 |
 | Build | MSVC Release, Win32 |
@@ -32,7 +32,7 @@ Network tests and experimental hooks remained disabled.
 | Windows x86 | Controlled local HTTP M3U/PLS | playlist text | no | not applicable | not applicable | not applicable | not applicable | yes | all five fixtures rejected during playback |
 | Windows x86 | Authorized HTTP stream | MP3 | pending | pending | pending | pending | pending | pending | no authorized URL supplied |
 | Windows x86 | Authorized HTTPS stream | MP3 | pending | pending | pending | pending | pending | pending | no authorized URL supplied |
-| Windows x86 | Authorized HTTP(S) stream | AAC/HE-AAC | pending | pending | pending | pending | pending | pending | no authorized URL supplied |
+| Windows x86 | HTTPS M3U to HTTP media | AAC | yes | human-confirmed | human-confirmed | `0.0`, `0.3`, `1.0` human-confirmed | human-confirmed | timed and interrupted shutdown passed | real AAC/HTTP passed; HTTPS media not tested |
 | Wine win32 prefix | pending | pending | pending | pending | pending | pending | pending | pending | not executed |
 | Separate Proton prefix | pending | pending | pending | pending | pending | pending | pending | pending | not executed |
 
@@ -44,6 +44,43 @@ Network tests and experimental hooks remained disabled.
 - CTest passed 33 of 33 tests, including backend lifecycle, repeated stop,
   URL validation, playlist parsing, and log sanitization.
 - The standard pull-request workflows do not use a private stream URL.
+
+## Authorized AAC stream
+
+An authorized station supplied as a generic **Authorized HTTPS M3U station A**
+was tested without retaining or publishing its URL or final hostname.
+
+The outer playlist returned HTTP `200` as `audio/x-mpegurl`, redirected, and
+contained one usable entry. Direct probe playback of the playlist followed
+`opening -> error` and exited with `3`, confirming that the current product path
+still does not resolve remote playlists.
+
+For backend validation only, the entry was resolved outside the product code.
+`ffprobe` identified the final media as AAC (`format_name=aac`); this result was
+not inferred from a filename. The final media transport was HTTP, despite the
+outer playlist using HTTPS.
+
+| Check | Sanitized state sequence | Startup | Exit | Human result |
+| --- | --- | --- | --- | --- |
+| Basic, 30 seconds | `opening -> playing -> stopped` | 703 ms | `0` | continuous audio confirmed |
+| Pause/resume | `opening -> playing -> paused -> playing -> stopped` | 803 ms; resume 100 ms | `0` | pause and return without overlap confirmed |
+| Reconnect, 40 seconds | `opening -> playing -> stopped -> opening -> playing -> stopped` | 804 ms; reopen 602 ms | `0` | audio returned without simultaneous playback |
+| Volume `0.0` | `opening -> playing -> stopped` | not recorded | `0` | silence confirmed |
+| Volume `0.3` | `opening -> playing -> stopped` | not recorded | `0` | lower than `0.5` confirmed in immediate A/B repeat |
+| Volume `1.0` | `opening -> playing -> stopped` | not recorded | `0` | louder than `0.5`; no perceived distortion |
+
+The first isolated `0.3` run was not perceived as clearly lower than an earlier
+`0.5` run. An immediate `0.5` then `0.3` A/B repeat was performed; both exited
+with `0`, and the human listener confirmed that `0.3` was lower. This repeat is
+the basis for the volume result above.
+
+An automated `CTRL_BREAK_EVENT` was also sent after this real stream reached
+`playing`. The cooperative handler stopped the backend on the main thread,
+printed `stopped`, exited with `130`, and left no residual process.
+
+Probe output was captured only in ignored temporary files so the URL was not
+echoed during testing. The resolved URL and every raw probe/inspection log were
+deleted after the sanitized facts above were collected.
 
 ## Controlled local playback
 
@@ -83,6 +120,9 @@ process. The console-close handler performs no libVLC work: it sets the stop fla
 and waits at most four seconds for the main thread to finish. The exact
 `CTRL_CLOSE_EVENT` path was not separately exercised.
 
+The same interruption path was subsequently repeated while the authorized AAC
+stream was active, with the same clean exit `130` and no residual process.
+
 ## Sanitization
 
 A synthetic `auth` query value was used only against a closed localhost port.
@@ -108,6 +148,10 @@ download playlist text or call `PlaylistParser::parse()`, so relative entries,
 final-stream redirection, and multiple-station selection are not available in
 this path.
 
+The authorized real HTTPS M3U behaved the same way when passed directly to the
+probe: `opening -> error`, exit `3`. Resolving its one entry externally enabled
+the AAC backend test above but did not add playlist support to the product.
+
 The recommended next audio-layer phase is **Phase 2C — RemotePlaylistResolver**.
 It should resolve authorized remote playlist content before passing one final
 HTTP(S) media URL to the backend, without adding that larger HTTP responsibility
@@ -115,8 +159,12 @@ to this pull request.
 
 ## Pending real-stream validation
 
-No authorized MP3 HTTP, MP3 HTTPS, or known AAC/HE-AAC URL was supplied. Those
-three 30-second tests, TLS and redirect checks, human audible confirmation,
-perceived volume behavior, audible pause/resume, and audible reconnection remain
-pending. GTA III integration, radio replacement, Wine, and Proton also remain
+Authorized real AAC over HTTP, audible output, pause/resume, reconnect, volume,
+and cooperative interruption are validated. Playlist retrieval over HTTPS and
+an outer redirect were observed, but the media itself used HTTP; this is not
+evidence of HTTPS media playback.
+
+MP3 over HTTP, MP3 over HTTPS, AAC over HTTPS, and libVLC media TLS/redirect
+behavior remain pending because no matching authorized direct media URLs were
+supplied. GTA III integration, radio replacement, Wine, and Proton also remain
 pending.

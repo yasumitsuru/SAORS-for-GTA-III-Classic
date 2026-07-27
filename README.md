@@ -25,9 +25,10 @@ Linux game plugin.
 | ASI initialization | Initial, safe stub |
 | Unsupported executable handling | Implemented |
 | GTA III radio hooks | Planned; no verified addresses |
-| Optional libVLC backend | Implemented; Windows x86 build, offline lifecycle, and controlled localhost runtime tested |
-| Standalone stream probe | Implemented; local controls and shutdown validated, real streams pending |
-| MP3/AAC/HTTP(S) playback | Not yet validated with a real stream |
+| Optional libVLC backend | Implemented; Windows x86 build, offline lifecycle, localhost, and authorized AAC/HTTP runtime tested |
+| Standalone stream probe | Implemented; real AAC audio, controls, and shutdown manually validated |
+| AAC over HTTP playback | Manually validated with an authorized stream |
+| MP3 HTTP/HTTPS and AAC HTTPS | Pending authorized direct media URLs |
 | Remote M3U/PLS resolution | Not implemented; controlled playlist URLs do not play through the probe |
 | SteamOS/Proton runtime validation | Planned |
 
@@ -105,8 +106,9 @@ The probe does not load GTA III or the ASI:
 It reports state changes, supports pause/resume and reconnect checks, and redacts
 credentials plus `token`, `key`, and `auth` query values. See
 [Stream probe](docs/STREAM_PROBE.md) before testing a stream. The current
-[runtime evidence](docs/RUNTIME_VALIDATION.md) covers a controlled localhost
-fixture only; it is not proof of MP3, AAC, TLS, or audible output.
+[runtime evidence](docs/RUNTIME_VALIDATION.md) covers controlled localhost
+fixtures plus one authorized AAC/HTTP stream with human audio confirmation. It
+is not proof of MP3 or HTTPS media playback.
 
 ## Installation
 
@@ -149,8 +151,10 @@ reports.
 - There are no installed game hooks or memory patches.
 - Pause, reconnect, volume API calls, network-failure handling, and cooperative
   shutdown passed with a controlled localhost PCM fixture.
-- AAC, MP3, internet HTTP(S), TLS, and audible behavior have not yet been
-  validated against an authorized real stream.
+- AAC over HTTP, audible pause/resume, reconnect, volume, and cooperative
+  shutdown passed with an authorized real stream.
+- MP3 over HTTP/HTTPS, AAC over HTTPS, and libVLC media TLS behavior remain
+  unverified.
 - M3U8 parsing extracts absolute HTTP(S) entries; it is not an HLS implementation.
 - Remote M3U/PLS content is not resolved by the probe before libVLC playback.
 - plugin-sdk is not downloaded or linked yet.
@@ -158,7 +162,8 @@ reports.
 
 ## Roadmap
 
-- Add network and decoder tests for MP3/AAC over HTTP and HTTPS.
+- Add authorized network and decoder evidence for MP3 over HTTP/HTTPS and AAC
+  over HTTPS.
 - Establish legal, reproducible GTA III 1.0 US executable fingerprints.
 - Implement read-only game-state observation behind `GameIntegration`.
 - Add guarded radio suppression/restoration with failure rollback.
