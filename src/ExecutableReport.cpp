@@ -14,7 +14,8 @@ std::string pathForReport(const std::filesystem::path& path, const bool redactPa
 
 std::string jsonEscape(const std::string& value) {
     std::ostringstream output;
-    for (const unsigned char character : value) {
+    for (const char character : value) {
+        const auto byte = static_cast<unsigned char>(character);
         switch (character) {
         case '"':
             output << "\\\"";
@@ -38,11 +39,11 @@ std::string jsonEscape(const std::string& value) {
             output << "\\t";
             break;
         default:
-            if (character < 0x20U) {
+            if (byte < 0x20U) {
                 output << "\\u" << std::hex << std::setw(4) << std::setfill('0')
-                       << static_cast<unsigned int>(character) << std::dec;
+                       << static_cast<unsigned int>(byte) << std::dec;
             } else {
-                output << static_cast<char>(character);
+                output << character;
             }
             break;
         }

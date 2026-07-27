@@ -123,3 +123,29 @@ TEST_CASE("Redacted executable reports contain hashes but no personal path") {
     CHECK(json.find(std::string(64U, 'a')) != std::string::npos);
     CHECK(json.find("\"sections\"") != std::string::npos);
 }
+
+TEST_CASE("Executable JSON reports escape controls and preserve high-bit bytes") {
+    saors::ExecutableFingerprint fingerprint;
+    saors::ExecutableReportContext context;
+    context.profileName.clear();
+
+    std::string match = "ASCII \"quote\" \\ slash";
+    match.push_back('\b');
+    match.push_back('\f');
+    match.push_back('\n');
+    match.push_back('\r');
+    match.push_back('\t');
+    match.push_back(static_cast<char>(0x01U));
+    match += "\xC3\xA9";
+    match.push_back(static_cast<char>(0x80U));
+    context.matchDescription = match;
+
+    const auto json = saors::formatExecutableJsonReport("gta3.exe", fingerprint, context, false);
+
+    std::string escaped = "ASCII \\\"quote\\\" \\\\ slash\\b\\f\\n\\r\\t\\u0001";
+    escaped += "\xC3\xA9";
+    escaped.push_back(static_cast<char>(0x80U));
+
+    CHECK(json.find("\"profile\": \"\"") != std::string::npos);
+    CHECK(json.find("\"match\": \"" + escaped + "\"") != std::string::npos);
+}
