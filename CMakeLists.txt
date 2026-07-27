@@ -76,7 +76,6 @@ add_library(
         src/Logger.cpp
         src/PlaylistParser.cpp
         src/PlaylistResolver.cpp
-        src/PeImageReader.cpp
         src/RadioController.cpp
         src/StreamManager.cpp
         src/UrlSanitizer.cpp
@@ -124,9 +123,25 @@ if(SAORS_ENABLE_WINHTTP)
     set(SAORS_HAS_WINHTTP 1)
 endif()
 
+set(SAORS_HAS_EXECUTABLE_FINGERPRINTING 0)
+if(SAORS_ENABLE_EXECUTABLE_FINGERPRINTING)
+    target_sources(
+        saors_core
+        PRIVATE
+            src/ExecutableFingerprint.cpp
+            src/PeImageReader.cpp
+    )
+    if(WIN32)
+        target_sources(saors_core PRIVATE src/WindowsFileHasher.cpp)
+        target_link_libraries(saors_core PUBLIC bcrypt)
+    endif()
+    set(SAORS_HAS_EXECUTABLE_FINGERPRINTING 1)
+endif()
+
 target_compile_definitions(
     saors_core
     PUBLIC
+        SAORS_HAS_EXECUTABLE_FINGERPRINTING=${SAORS_HAS_EXECUTABLE_FINGERPRINTING}
         SAORS_HAS_LIBVLC=${SAORS_HAS_LIBVLC}
         SAORS_HAS_WINHTTP=${SAORS_HAS_WINHTTP}
 )
