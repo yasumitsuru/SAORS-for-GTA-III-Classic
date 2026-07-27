@@ -218,7 +218,13 @@ if(SAORS_BUILD_TESTS)
         tests/UrlSanitizerTests.cpp
     )
     if(SAORS_ENABLE_WINHTTP)
-        target_sources(saors_tests PRIVATE tests/WinHttpClientTests.cpp)
+        target_sources(
+            saors_tests
+            PRIVATE
+                tests/WinHttpClientTests.cpp
+                tests/WinHttpIntegrationTests.cpp
+        )
+        target_link_libraries(saors_tests PRIVATE ws2_32)
     endif()
     target_link_libraries(saors_tests PRIVATE saors_core Catch2::Catch2WithMain)
     if(SAORS_ENABLE_LIBVLC)
