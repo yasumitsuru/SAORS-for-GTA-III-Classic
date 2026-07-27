@@ -2,10 +2,17 @@
 #include "saors_gta3/Configuration.hpp"
 #include "saors_gta3/GameIntegration.hpp"
 #include "saors_gta3/Logger.hpp"
+#include "saors_gta3/PlaylistResolver.hpp"
+#include "saors_gta3/StreamManager.hpp"
+
+#if SAORS_HAS_WINHTTP
+#include "saors_gta3/WinHttpClient.hpp"
+#endif
 
 #include <windows.h>
 
 #include <filesystem>
+#include <memory>
 #include <string>
 
 namespace {
@@ -54,7 +61,17 @@ DWORD WINAPI initializePlugin(const LPVOID parameter) {
             saors::Logger::warning(warning);
         }
 
-        const auto backend = saors::createConfiguredAudioBackend();
+        auto backend = saors::createConfiguredAudioBackend();
+#if SAORS_HAS_WINHTTP
+        auto httpClient = std::make_shared<saors::WinHttpClient>();
+        auto resolver = std::make_shared<saors::PlaylistResolver>(httpClient);
+        saors::StreamManager streams(std::move(backend), std::move(resolver));
+        saors::Logger::info("Remote playlist resolver initialized");
+#else
+        saors::StreamManager streams(std::move(backend));
+        saors::Logger::warning("Remote playlist resolver is unavailable in this build");
+#endif
+        static_cast<void>(streams);
         static_cast<void>(game.installHooks());
     } catch (...) {
         saors::Logger::error("Unhandled exception during plugin initialization");

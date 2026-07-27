@@ -46,6 +46,13 @@ TEST_CASE("Default configuration is safe and enabled") {
     CHECK(configuration.general.bufferMilliseconds == 3000);
     CHECK(configuration.general.reconnect);
     CHECK(configuration.general.reconnectDelayMilliseconds == 5000);
+    CHECK(configuration.general.resolveRemotePlaylists);
+    CHECK(configuration.general.playlistConnectTimeoutMilliseconds == 5000);
+    CHECK(configuration.general.playlistReceiveTimeoutMilliseconds == 10000);
+    CHECK(configuration.general.playlistMaximumBytes == 262144);
+    CHECK(configuration.general.playlistMaximumEntries == 128);
+    CHECK(configuration.general.playlistMaximumRedirects == 5);
+    CHECK(configuration.general.playlistMaximumDepth == 3);
     CHECK(configuration.general.volumeMultiplier == Catch::Approx(1.0F));
     CHECK(configuration.general.logLevel == saors::LogLevel::info);
     CHECK(configuration.stations.empty());
@@ -58,6 +65,13 @@ Enabled=true
 BufferMilliseconds=2500
 Reconnect=false
 ReconnectDelayMilliseconds=7500
+ResolveRemotePlaylists=false
+PlaylistConnectTimeoutMilliseconds=1000
+PlaylistReceiveTimeoutMilliseconds=2000
+PlaylistMaximumBytes=4096
+PlaylistMaximumEntries=10
+PlaylistMaximumRedirects=2
+PlaylistMaximumDepth=2
 VolumeMultiplier=0.75
 LogLevel=debug
 
@@ -65,6 +79,7 @@ LogLevel=debug
 Enabled=true
 Name=Online Radio
 URL=https://example.com/stream
+AllowHttp=true
 )ini"};
 
     const auto result = saors::Configuration::load(file.path());
@@ -75,6 +90,13 @@ URL=https://example.com/stream
     CHECK(result.value.general.bufferMilliseconds == 2500);
     CHECK_FALSE(result.value.general.reconnect);
     CHECK(result.value.general.reconnectDelayMilliseconds == 7500);
+    CHECK_FALSE(result.value.general.resolveRemotePlaylists);
+    CHECK(result.value.general.playlistConnectTimeoutMilliseconds == 1000);
+    CHECK(result.value.general.playlistReceiveTimeoutMilliseconds == 2000);
+    CHECK(result.value.general.playlistMaximumBytes == 4096);
+    CHECK(result.value.general.playlistMaximumEntries == 10);
+    CHECK(result.value.general.playlistMaximumRedirects == 2);
+    CHECK(result.value.general.playlistMaximumDepth == 2);
     CHECK(result.value.general.volumeMultiplier == Catch::Approx(0.75F));
     CHECK(result.value.general.logLevel == saors::LogLevel::debug);
 
@@ -83,6 +105,7 @@ URL=https://example.com/stream
     CHECK(station.enabled);
     CHECK(station.name == "Online Radio");
     CHECK(station.url == "https://example.com/stream");
+    CHECK(station.allowHttp);
 }
 
 TEST_CASE("Boolean configuration accepts common explicit forms") {
@@ -158,4 +181,31 @@ TEST_CASE("Keys before a section are rejected") {
     CHECK_FALSE(result.success);
     REQUIRE_FALSE(result.errors.empty());
     CHECK(result.errors.front().find("before a section") != std::string::npos);
+}
+
+TEST_CASE("Playlist limits reject zero and retain safe defaults") {
+    const TemporaryIni file{R"ini(
+[General]
+PlaylistConnectTimeoutMilliseconds=0
+PlaylistReceiveTimeoutMilliseconds=0
+PlaylistMaximumBytes=0
+PlaylistMaximumEntries=0
+PlaylistMaximumRedirects=0
+PlaylistMaximumDepth=0
+
+[Station.HeadRadio]
+AllowHttp=perhaps
+)ini"};
+
+    const auto result = saors::Configuration::load(file.path());
+
+    CHECK_FALSE(result.success);
+    CHECK(result.errors.size() == 7);
+    CHECK(result.value.general.playlistConnectTimeoutMilliseconds == 5000);
+    CHECK(result.value.general.playlistReceiveTimeoutMilliseconds == 10000);
+    CHECK(result.value.general.playlistMaximumBytes == 262144);
+    CHECK(result.value.general.playlistMaximumEntries == 128);
+    CHECK(result.value.general.playlistMaximumRedirects == 5);
+    CHECK(result.value.general.playlistMaximumDepth == 3);
+    CHECK_FALSE(result.value.stations.at("HeadRadio").allowHttp);
 }

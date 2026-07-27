@@ -134,6 +134,55 @@ void assignGeneralValue(ConfigurationResult& result, const std::string& key,
         } else {
             addInvalidValueError(result, lineNumber, key, "an unsigned 32-bit integer");
         }
+    } else if (normalizedKey == "resolveremoteplaylists") {
+        const auto parsed = parseBoolean(value);
+        if (parsed.has_value()) {
+            general.resolveRemotePlaylists = *parsed;
+        } else {
+            addInvalidValueError(result, lineNumber, key, "a boolean");
+        }
+    } else if (normalizedKey == "playlistconnecttimeoutmilliseconds") {
+        const auto parsed = parseUnsigned(value);
+        if (parsed.has_value() && *parsed > 0) {
+            general.playlistConnectTimeoutMilliseconds = *parsed;
+        } else {
+            addInvalidValueError(result, lineNumber, key, "a positive integer");
+        }
+    } else if (normalizedKey == "playlistreceivetimeoutmilliseconds") {
+        const auto parsed = parseUnsigned(value);
+        if (parsed.has_value() && *parsed > 0) {
+            general.playlistReceiveTimeoutMilliseconds = *parsed;
+        } else {
+            addInvalidValueError(result, lineNumber, key, "a positive integer");
+        }
+    } else if (normalizedKey == "playlistmaximumbytes") {
+        const auto parsed = parseUnsigned(value);
+        if (parsed.has_value() && *parsed > 0) {
+            general.playlistMaximumBytes = *parsed;
+        } else {
+            addInvalidValueError(result, lineNumber, key, "a positive integer");
+        }
+    } else if (normalizedKey == "playlistmaximumentries") {
+        const auto parsed = parseUnsigned(value);
+        if (parsed.has_value() && *parsed > 0) {
+            general.playlistMaximumEntries = *parsed;
+        } else {
+            addInvalidValueError(result, lineNumber, key, "a positive integer");
+        }
+    } else if (normalizedKey == "playlistmaximumredirects") {
+        const auto parsed = parseUnsigned(value);
+        if (parsed.has_value() && *parsed > 0) {
+            general.playlistMaximumRedirects = *parsed;
+        } else {
+            addInvalidValueError(result, lineNumber, key, "a positive integer");
+        }
+    } else if (normalizedKey == "playlistmaximumdepth") {
+        const auto parsed = parseUnsigned(value);
+        if (parsed.has_value() && *parsed > 0) {
+            general.playlistMaximumDepth = *parsed;
+        } else {
+            addInvalidValueError(result, lineNumber, key, "a positive integer");
+        }
     } else if (normalizedKey == "volumemultiplier") {
         const auto parsed = parseFloat(value);
         if (parsed.has_value()) {
@@ -172,6 +221,13 @@ void assignStationValue(ConfigurationResult& result, const std::string& stationK
         station.name = value;
     } else if (normalizedKey == "url") {
         station.url = value;
+    } else if (normalizedKey == "allowhttp") {
+        const auto parsed = parseBoolean(value);
+        if (parsed.has_value()) {
+            station.allowHttp = *parsed;
+        } else {
+            addInvalidValueError(result, lineNumber, key, "a boolean");
+        }
     } else {
         result.warnings.push_back("line " + std::to_string(lineNumber) + ": unknown station key '" +
                                   key + "'");
