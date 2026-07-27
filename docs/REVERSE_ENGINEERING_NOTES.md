@@ -2,12 +2,14 @@
 
 ## Current verified map
 
-No executable fingerprints, addresses, signatures, offsets, or hooks are verified
-in this repository.
+The fingerprinting mechanism and one real GTA III Classic identity record are
+implemented. No address, signature, offset, calling convention, memory read,
+patch, or hook is verified in this repository.
 
 | Executable adapter | Fingerprint | Evidence | Hook status |
 | --- | --- | --- | --- |
-| GTA III 1.0 US | Not recorded | Pending | Disabled |
+| GTA III Classic local candidate | Exact profile registered | Two identical local runs; `locally_reproduced`; edition/region unverified | Disabled; adapter unmapped |
+| GTA III 1.0 US | No exact profile | Research target; independent evidence pending | Disabled |
 
 ## Research rules
 
@@ -49,3 +51,7 @@ Copyright and disclosure review:
 7. Perform game smoke tests on a disposable backup before requesting review.
 
 Never fill a missing address with an estimate or a value copied without provenance.
+
+Phase 3B may evaluate pinned `plugin_III` support from plugin-sdk only after an
+exact commit and license review. Every consumed symbol and address must be audited,
+validated on an exactly recognized executable, and protected by a safe fallback.

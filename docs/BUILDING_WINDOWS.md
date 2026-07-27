@@ -41,10 +41,12 @@ cmake --build --preset windows-msvc-x86-release
 ctest --preset windows-msvc-x86-release
 ```
 
-The release artifact is:
+The release artifacts are:
 
 ```text
 build/windows-msvc-x86-release/bin/Release/SAORSForGTA3.asi
+build/windows-msvc-x86-release/bin/Release/saors_stream_probe.exe
+build/windows-msvc-x86-release/bin/Release/saors_exe_probe.exe
 ```
 
 The preset selects the Visual Studio `Win32` platform. CMake also rejects an ASI
@@ -58,8 +60,10 @@ build when the target pointer size is not 32 bits.
 | `SAORS_ENABLE_WARNINGS_AS_ERRORS` | `OFF` | Promote warnings to errors |
 | `SAORS_BUILD_ASI` | `ON` for Windows targets | Build `SAORSForGTA3.asi` |
 | `SAORS_BUILD_STREAM_PROBE` | `ON` | Build the standalone stream probe |
+| `SAORS_BUILD_EXE_PROBE` | `ON` for Windows targets | Build the standalone executable probe |
 | `SAORS_ENABLE_LIBVLC` | `OFF` | Compile the optional dynamic libVLC backend |
 | `SAORS_ENABLE_WINHTTP` | `ON` for Windows targets | Compile native remote-playlist HTTP support |
+| `SAORS_ENABLE_EXECUTABLE_FINGERPRINTING` | `ON` | Build PE parsing, fingerprinting, and profile matching |
 | `SAORS_LIBVLC_ROOT` | empty | Root of a supplied Win32 SDK/runtime |
 | `SAORS_ENABLE_NETWORK_TESTS` | `OFF` | Enable private, opt-in stream tests |
 | `SAORS_TEST_STREAM_URL` | empty | Private URL used only by opt-in tests |
@@ -67,6 +71,24 @@ build when the target pointer size is not 32 bits.
 
 Enabling the last option currently installs no hooks because there is no verified
 address map. It exists to make later experimental work an explicit build choice.
+
+`SAORS_BUILD_EXE_PROBE` requires a Windows x86 target and executable
+fingerprinting. Windows builds link the operating-system `bcrypt` library.
+
+## Executable probe
+
+The probe requires an explicit path and never searches for a game:
+
+```powershell
+.\build\windows-msvc-x86-release\bin\Release\saors_exe_probe.exe `
+  --exe "C:\Games\GTA3\gta3.exe" --redact-path --compare-known
+```
+
+Use `--json` for JSON stdout. `--output` writes the redacted or unredacted JSON
+selected by the command to the ignored default
+`research/local/executable.exe-profile.local.json`; a custom output path may
+follow the option. See
+[Executable research workflow](EXECUTABLE_RESEARCH_WORKFLOW.md).
 
 ## Optional libVLC Windows x86 build
 

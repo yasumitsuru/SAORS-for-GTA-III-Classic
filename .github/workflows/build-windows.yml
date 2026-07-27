@@ -21,6 +21,7 @@ jobs:
           -DSAORS_BUILD_ASI=ON
           -DSAORS_BUILD_TESTS=ON
           -DSAORS_BUILD_STREAM_PROBE=ON
+          -DSAORS_BUILD_EXE_PROBE=ON
           -DSAORS_ENABLE_LIBVLC=OFF
           -DSAORS_ENABLE_NETWORK_TESTS=OFF
           -DSAORS_ENABLE_WARNINGS_AS_ERRORS=ON
@@ -34,9 +35,15 @@ jobs:
       - name: Smoke test null-backend stream probe
         run: build/ci-windows-x86/bin/Release/saors_stream_probe.exe --help
 
-      - name: Upload ASI
+      - name: Smoke test executable probe CLI
+        run: build/ci-windows-x86/bin/Release/saors_exe_probe.exe --help
+
+      - name: Upload Windows x86 artifacts
         uses: actions/upload-artifact@v7
         with:
           name: SAORSForGTA3-windows-x86
-          path: build/ci-windows-x86/bin/Release/SAORSForGTA3.asi
+          path: |
+            build/ci-windows-x86/bin/Release/SAORSForGTA3.asi
+            build/ci-windows-x86/bin/Release/saors_stream_probe.exe
+            build/ci-windows-x86/bin/Release/saors_exe_probe.exe
           if-no-files-found: error

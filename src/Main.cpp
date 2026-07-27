@@ -1,8 +1,11 @@
 #include "saors_gta3/AudioBackendFactory.hpp"
 #include "saors_gta3/Configuration.hpp"
+#include "saors_gta3/ExecutableFingerprint.hpp"
+#include "saors_gta3/FileHasher.hpp"
 #include "saors_gta3/GameIntegration.hpp"
 #include "saors_gta3/Logger.hpp"
 #include "saors_gta3/PlaylistResolver.hpp"
+#include "saors_gta3/PeImageReader.hpp"
 #include "saors_gta3/StreamManager.hpp"
 
 #if SAORS_HAS_WINHTTP
@@ -17,26 +20,32 @@
 
 namespace {
 
-std::filesystem::path moduleDirectory(const HMODULE module) {
+std::filesystem::path modulePath(const HMODULE module) {
     std::wstring path(260, L'\0');
     for (;;) {
         const DWORD copied =
             GetModuleFileNameW(module, path.data(), static_cast<DWORD>(path.size()));
         if (copied == 0) {
-            return std::filesystem::current_path();
+            return {};
         }
         if (static_cast<std::size_t>(copied) < path.size() - 1) {
             path.resize(copied);
-            return std::filesystem::path(path).parent_path();
+            return std::filesystem::path(path);
         }
         path.resize(path.size() * 2);
     }
 }
 
+const char* booleanName(const bool value) noexcept {
+    return value ? "true" : "false";
+}
+
 DWORD WINAPI initializePlugin(const LPVOID parameter) {
     try {
         const auto module = static_cast<HMODULE>(parameter);
-        const auto directory = moduleDirectory(module);
+        const auto pluginPath = modulePath(module);
+        const auto directory =
+            pluginPath.empty() ? std::filesystem::current_path() : pluginPath.parent_path();
         const auto configPath = directory / "SAORSForGTA3.ini";
         const auto configuration = saors::Configuration::load(configPath);
 
@@ -46,8 +55,32 @@ DWORD WINAPI initializePlugin(const LPVOID parameter) {
         saors::Logger::info("Plugin version: " SAORS_PLUGIN_VERSION);
 
         saors::GameIntegration game;
-        static_cast<void>(game.detectExecutableVersion());
-        saors::Logger::info("Detected executable: " + game.detectedExecutableDescription());
+#if SAORS_HAS_EXECUTABLE_FINGERPRINTING
+        const auto executablePath = modulePath(nullptr);
+        auto hasher = saors::createPlatformFileHasher();
+        if (!executablePath.empty() && hasher) {
+            const saors::PeImageReader reader;
+            const auto fingerprint =
+                saors::fingerprintExecutable(executablePath, reader, *hasher);
+            if (fingerprint) {
+                static_cast<void>(game.detectExecutableVersion(fingerprint.value));
+                saors::Logger::info("Executable architecture: PE32 x86");
+            } else {
+                saors::Logger::warning("Executable architecture: unsupported");
+            }
+        } else {
+            saors::Logger::warning("Executable architecture: unsupported");
+        }
+#else
+        saors::Logger::warning("Executable architecture: unsupported");
+#endif
+        saors::Logger::info("Executable profile: " + game.detectedExecutableDescription());
+        saors::Logger::info("Fingerprint status: " + game.fingerprintStatusDescription());
+        saors::Logger::info("Verification level: " + game.verificationStatusDescription());
+        saors::Logger::info(std::string("File fingerprint match: ") +
+                            booleanName(game.fileFingerprintMatch()));
+        saors::Logger::info(std::string("Text fingerprint match: ") +
+                            booleanName(game.textFingerprintMatch()));
 
         if (configuration.success) {
             saors::Logger::info("Configuration loaded");
@@ -73,6 +106,9 @@ DWORD WINAPI initializePlugin(const LPVOID parameter) {
 #endif
         static_cast<void>(streams);
         static_cast<void>(game.installHooks());
+        saors::Logger::info("Gameplay reads: disabled");
+        saors::Logger::info("Audio playback: not started");
+        saors::Logger::info("Network activity: not started");
     } catch (...) {
         saors::Logger::error("Unhandled exception during plugin initialization");
     }

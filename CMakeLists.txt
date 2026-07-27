@@ -15,8 +15,14 @@ option(SAORS_BUILD_TESTS "Build host-runnable unit tests" ON)
 option(SAORS_ENABLE_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 option(SAORS_BUILD_ASI "Build the Windows x86 ASI plugin" ${WIN32})
 option(SAORS_BUILD_STREAM_PROBE "Build the standalone stream probe" ON)
+option(SAORS_BUILD_EXE_PROBE "Build the standalone executable probe" ${WIN32})
 option(SAORS_ENABLE_LIBVLC "Build the optional dynamic libVLC backend" OFF)
 option(SAORS_ENABLE_WINHTTP "Build the Windows WinHTTP playlist client" ${WIN32})
+option(
+    SAORS_ENABLE_EXECUTABLE_FINGERPRINTING
+    "Build defensive PE executable fingerprinting support"
+    ON
+)
 option(SAORS_ENABLE_NETWORK_TESTS "Build opt-in network playback tests" OFF)
 option(SAORS_ENABLE_EXPERIMENTAL_HOOKS "Enable unverified experimental game hooks" OFF)
 set(SAORS_LIBVLC_ROOT "" CACHE PATH "Root of an externally supplied libVLC SDK/runtime")
@@ -66,6 +72,7 @@ add_library(
         src/AudioBackend.cpp
         src/AudioBackendFactory.cpp
         src/Configuration.cpp
+        src/GameIntegration.cpp
         src/HttpUrl.cpp
         src/Logger.cpp
         src/PlaylistParser.cpp
@@ -117,9 +124,27 @@ if(SAORS_ENABLE_WINHTTP)
     set(SAORS_HAS_WINHTTP 1)
 endif()
 
+set(SAORS_HAS_EXECUTABLE_FINGERPRINTING 0)
+if(SAORS_ENABLE_EXECUTABLE_FINGERPRINTING)
+    target_sources(
+        saors_core
+        PRIVATE
+            src/ExecutableFingerprint.cpp
+            src/ExecutableProfileRegistry.cpp
+            src/ExecutableReport.cpp
+            src/PeImageReader.cpp
+    )
+    if(WIN32)
+        target_sources(saors_core PRIVATE src/WindowsFileHasher.cpp)
+        target_link_libraries(saors_core PUBLIC bcrypt)
+    endif()
+    set(SAORS_HAS_EXECUTABLE_FINGERPRINTING 1)
+endif()
+
 target_compile_definitions(
     saors_core
     PUBLIC
+        SAORS_HAS_EXECUTABLE_FINGERPRINTING=${SAORS_HAS_EXECUTABLE_FINGERPRINTING}
         SAORS_HAS_LIBVLC=${SAORS_HAS_LIBVLC}
         SAORS_HAS_WINHTTP=${SAORS_HAS_WINHTTP}
 )
@@ -140,7 +165,6 @@ if(SAORS_BUILD_ASI)
     add_library(
         SAORSForGTA3
         SHARED
-            src/GameIntegration.cpp
             src/Main.cpp
     )
     target_link_libraries(SAORSForGTA3 PRIVATE saors_core)
@@ -191,6 +215,40 @@ if(SAORS_BUILD_STREAM_PROBE)
     saors_enable_warnings(saors_stream_probe)
 endif()
 
+if(SAORS_BUILD_EXE_PROBE)
+    if(NOT WIN32)
+        message(FATAL_ERROR "SAORS_BUILD_EXE_PROBE requires a Windows target toolchain.")
+    endif()
+    if(NOT SAORS_ENABLE_EXECUTABLE_FINGERPRINTING)
+        message(
+            FATAL_ERROR
+            "SAORS_BUILD_EXE_PROBE requires SAORS_ENABLE_EXECUTABLE_FINGERPRINTING=ON."
+        )
+    endif()
+    if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
+        message(FATAL_ERROR "saors_exe_probe must be built for Windows x86.")
+    endif()
+    add_executable(saors_exe_probe tools/exe_probe/Main.cpp)
+    target_link_libraries(saors_exe_probe PRIVATE saors_core)
+    target_compile_definitions(
+        saors_exe_probe
+        PRIVATE
+            SAORS_EXE_PROBE_VERSION="${SAORS_VERSION}"
+            WIN32_LEAN_AND_MEAN
+            NOMINMAX
+    )
+    set_target_properties(
+        saors_exe_probe
+        PROPERTIES
+            OUTPUT_NAME "saors_exe_probe"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+    )
+    if(MINGW)
+        target_link_options(saors_exe_probe PRIVATE -municode -static-libgcc -static-libstdc++)
+    endif()
+    saors_enable_warnings(saors_exe_probe)
+endif()
+
 if(SAORS_BUILD_TESTS)
     include(CTest)
     include(FetchContent)
@@ -217,6 +275,16 @@ if(SAORS_BUILD_TESTS)
         tests/StreamManagerTests.cpp
         tests/UrlSanitizerTests.cpp
     )
+    if(SAORS_ENABLE_EXECUTABLE_FINGERPRINTING)
+        target_sources(
+            saors_tests
+            PRIVATE
+                tests/ExecutableFingerprintTests.cpp
+                tests/ExecutableProfileRegistryTests.cpp
+                tests/PeImageReaderTests.cpp
+                tests/WindowsFileHasherTests.cpp
+        )
+    endif()
     if(SAORS_ENABLE_WINHTTP)
         target_sources(
             saors_tests

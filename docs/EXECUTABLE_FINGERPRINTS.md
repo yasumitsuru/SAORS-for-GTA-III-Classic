@@ -1,0 +1,156 @@
+# Executable fingerprints
+
+## Purpose and safety boundary
+
+Phase 3A identifies a Windows PE executable before any future game adapter can
+consider internal data. Identification does not install a hook, read gameplay
+state, or prove that a future address map is correct. The filename `gta3.exe`,
+file size, timestamp, and Windows version resources are never sufficient by
+themselves.
+
+The ASI obtains only the host executable path supplied by Windows. It performs the
+inspection on its initialization worker, not in `DllMain`, and does not search any
+drive. An invalid, modified, unregistered, or unreadable executable remains
+unsupported and receives no memory access.
+
+## Fingerprint model
+
+An `ExecutableFingerprint` contains:
+
+- SHA-256 of the complete file;
+- SHA-256 of the `.text` section;
+- PE machine and optional-header magic;
+- COFF timestamp;
+- entry-point RVA;
+- image size and PE checksum;
+- file size;
+- section names, virtual RVAs/sizes, raw offsets/sizes, and SHA-256 values.
+
+These are file-layout facts. No loaded pointer or process virtual address is
+persisted. A fingerprint is also different from a future memory signature:
+
+- a fingerprint identifies exact file bytes and structural metadata;
+- a memory signature would validate the expected bytes around one future access
+  site after the recognized image is loaded.
+
+Both controls will be required before hooks can be considered. Phase 3A implements
+only the first.
+
+## Defensive PE reader
+
+`PeImageReader` reads the DOS header, PE/COFF header, bounded PE32 optional header,
+and section table without loading or executing the inspected file. It rejects:
+
+- missing DOS or PE signatures;
+- `e_lfanew` below the DOS header, above 1 MiB, or outside the file;
+- non-Intel-386 machines and PE32+ images;
+- zero or more than 96 sections;
+- truncated or inconsistent optional headers and section tables;
+- zero alignments, invalid image bounds, and invalid `SizeOfHeaders`;
+- raw or virtual range overflow, out-of-file data, and overlapping regions;
+- unsafe section names;
+- a missing, duplicate, or empty `.text` section;
+- files larger than the defensive limit of 512 MiB.
+
+The parser uses explicit little-endian reads and checked arithmetic. It never calls
+`LoadLibrary`.
+
+## SHA-256
+
+Windows builds use the operating system CNG API through BCrypt. Files are opened
+read-only with Unicode paths and hashed incrementally in 64 KiB blocks. Full-file
+and section-range hashes use RAII wrappers for file, algorithm, and hash handles.
+Provider work buffers and digest buffers are cleared before release. The project
+does not implement its own cryptographic algorithm.
+
+`FileHasher` keeps parsing and matching portable. Linux host tests inject a
+deterministic implementation and never require a Windows crypto API.
+
+## Exact and partial matching
+
+A usable profile must contain both lowercase 64-character hashes, all expected PE
+metadata, an evidence origin, a verification date, and a non-unsupported ID.
+
+- `exact fingerprint match`: full SHA-256, `.text` SHA-256, and every registered
+  metadata field match.
+- `candidate structural match`: metadata matches but one or both hashes differ.
+- `no exact profile match`: metadata differs, the registry is empty, or no usable
+  profile matches.
+
+Only an exact match can select a named profile. Partial matching is diagnostic and
+never enables support. A changed full-file hash can indicate an overlay or resource
+change; a changed `.text` hash indicates changed code. Both remain unsupported.
+
+## Verification levels and current registry
+
+Profiles support four evidence levels:
+
+| Level | Meaning |
+| --- | --- |
+| `candidate` | One explicitly supplied legal copy produced a plausible report |
+| `locally_reproduced` | The same maintainer reproduced the result |
+| `independently_reproduced` | Another contributor reproduced it independently |
+| `verified` | Evidence and compatibility review accepted it for the stated scope |
+
+The built-in registry contains one profile:
+
+| Field | Value |
+| --- | --- |
+| ID | `gta3_classic_local_candidate` |
+| Name | `GTA III Classic local candidate` |
+| Verification | `locally_reproduced` |
+| Reproduction | Two identical local probe runs on 2026-07-27 |
+| Architecture | PE32, Intel 386 |
+| File size | 2,383,872 bytes |
+| COFF timestamp | 1,020,186,132 |
+| Entry-point RVA | 1,842,800 |
+| `SizeOfImage` | 5,775,360 |
+| PE checksum | 0 |
+| Complete SHA-256 | `ebb8cd22b88bd84b9a223aee02e67e3dc0b4acbc17d7155951e7cc02f524a343` |
+| `.text` SHA-256 | `695fe240ba96fc010b3363e64319d7327ca7f171ffa6eba50454ee37d6bbe79b` |
+
+The source was a user-supplied, Steam-managed GTA III Classic installation. It
+had no usable Windows version resource and was already used with third-party
+loaders or mods, so edition, region, and pristine-distribution provenance remain
+unverified. The profile is deliberately not labeled GTA III 1.0 US.
+
+An exact match to this profile is an identity result only. It does not verify an
+address, signature, calling convention, game-state reader, radio hook, or patch.
+The corresponding adapter remains unmapped and `installHooks()` returns `false`.
+
+## ASI behavior and logging
+
+The initialization worker fingerprints the host and compares it with the registry.
+Normal logs contain only architecture, profile name, match booleans, match status,
+verification level, and explicit disabled/not-started state for hooks, gameplay
+reads, audio playback, and network activity. Full hashes and executable paths are
+not written to the normal ASI log.
+
+Configuration, the audio backend, and the playlist resolver may be constructed
+later in the worker, but fingerprinting itself starts no network request or audio.
+`installHooks()` still returns `false`; all gameplay query methods retain their
+safe placeholder behavior.
+
+## Controlled validation
+
+Synthetic PE fixtures cover valid PE32 x86 input, truncation, PE32+, wrong machine,
+missing `.text`, overflow, range overlap, read failure, Unicode paths, hashing
+failure, exact and partial matching, an empty registry, and report redaction.
+Windows tests verify the standard SHA-256 digest for `abc` and process a 1 MiB file
+through the incremental BCrypt path. Fingerprint creation repeats the complete
+file hash and PE layout read at the end, rejecting a file that changed during
+collection.
+
+The standalone probe was run twice against the explicitly supplied game
+executable with `--json --redact-path --compare-known`. Both reports were
+identical, exited successfully, contained no local path or raw bytes, and produced
+the profile above. After registration, the same probe reported an exact
+`locally_reproduced` identity match. A control run against the project-built
+probe itself remained safely unrecognized.
+
+The Windows MSVC x86 Release build passed 78 of 78 local tests with warnings as
+errors. A short ASI smoke test loaded an existing save, entered a vehicle, kept
+the original radio UI available, and closed without a residual game process.
+The ASI log confirmed exact identity, disabled hooks and gameplay reads, and no
+audio or network start. The automation did not provide an audio channel, so this
+does not add audible in-game evidence or establish hook compatibility.
