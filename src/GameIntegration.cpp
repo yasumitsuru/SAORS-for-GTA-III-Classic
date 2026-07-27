@@ -4,11 +4,28 @@
 
 namespace saors {
 
-ExecutableVersion GameIntegration::detectExecutableVersion() {
-    // No hashes or addresses are accepted until independently verified against a
-    // legally obtained GTA III 1.0 US executable. Filename/version-resource checks
-    // alone are not sufficient evidence for installing binary hooks.
+GameIntegration::GameIntegration() {
+#if SAORS_HAS_EXECUTABLE_FINGERPRINTING
+    registry_ = &defaultExecutableProfileRegistry();
+#endif
+}
+
+GameIntegration::GameIntegration(const ExecutableProfileRegistry& registry)
+    : registry_(&registry) {}
+
+ExecutableVersion
+GameIntegration::detectExecutableVersion(const ExecutableFingerprint& fingerprint) {
+#if SAORS_HAS_EXECUTABLE_FINGERPRINTING
+    if (registry_ != nullptr) {
+        match_ = registry_->match(fingerprint);
+    }
+#else
+    static_cast<void>(fingerprint);
+#endif
     detectedVersion_ = ExecutableVersion::unsupported;
+    if (match_.exact() && match_.id == ExecutableProfileId::gta3_10_us_candidate) {
+        detectedVersion_ = ExecutableVersion::gta3_10_us_unmapped;
+    }
     return detectedVersion_;
 }
 
@@ -17,7 +34,7 @@ bool GameIntegration::installHooks() {
     Logger::warning("Experimental hooks were requested, but no verified executable map exists; "
                     "hooks remain disabled");
 #else
-    Logger::info("Game hooks are disabled (safe default)");
+    Logger::info("Hooks: disabled");
 #endif
     hooksInstalled_ = false;
     return false;
@@ -46,11 +63,27 @@ float GameIntegration::radioVolume() const noexcept {
 std::string GameIntegration::detectedExecutableDescription() const {
     switch (detectedVersion_) {
     case ExecutableVersion::gta3_10_us_unmapped:
-        return "GTA III 1.0 US candidate (not mapped)";
+        return "GTA III 1.0 US candidate";
     case ExecutableVersion::unsupported:
-        return "unsupported or not yet mapped";
+        return "unsupported";
     }
-    return "unsupported or not yet mapped";
+    return "unsupported";
+}
+
+std::string GameIntegration::fingerprintStatusDescription() const {
+#if SAORS_HAS_EXECUTABLE_FINGERPRINTING
+    return executableFingerprintMatchKindName(match_.kind);
+#else
+    return "no exact profile match";
+#endif
+}
+
+bool GameIntegration::fileFingerprintMatch() const noexcept {
+    return match_.fileFingerprintMatch;
+}
+
+bool GameIntegration::textFingerprintMatch() const noexcept {
+    return match_.textFingerprintMatch;
 }
 
 } // namespace saors

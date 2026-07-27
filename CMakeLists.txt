@@ -129,6 +129,7 @@ if(SAORS_ENABLE_EXECUTABLE_FINGERPRINTING)
         saors_core
         PRIVATE
             src/ExecutableFingerprint.cpp
+            src/ExecutableProfileRegistry.cpp
             src/ExecutableReport.cpp
             src/PeImageReader.cpp
     )

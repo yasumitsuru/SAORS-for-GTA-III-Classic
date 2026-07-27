@@ -1,5 +1,6 @@
 #include "saors_gta3/ExecutableFingerprint.hpp"
 #include "saors_gta3/ExecutableReport.hpp"
+#include "saors_gta3/ExecutableProfileRegistry.hpp"
 #include "saors_gta3/FileHasher.hpp"
 #include "saors_gta3/PeImageReader.hpp"
 
@@ -117,7 +118,18 @@ int run(const Options& options) {
     }
 
     saors::ExecutableReportContext context;
-    static_cast<void>(options.compareKnown);
+    if (options.compareKnown) {
+        const auto match =
+            saors::defaultExecutableProfileRegistry().match(fingerprint.value);
+        context.profileName = match.profileName;
+        context.matchDescription =
+            saors::executableFingerprintMatchKindName(match.kind);
+        if (match.verificationStatus) {
+            context.verificationStatus =
+                saors::executableVerificationStatusName(*match.verificationStatus);
+        }
+        context.supported = match.exact();
+    }
     const auto text = saors::formatExecutableTextReport(
         options.executable, fingerprint.value, context, options.redactPath);
     const auto json = saors::formatExecutableJsonReport(
