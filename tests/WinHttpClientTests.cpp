@@ -25,3 +25,19 @@ TEST_CASE("WinHTTP client validates the scheme before opening a connection") {
     CHECK_FALSE(result);
     CHECK(result.error.find("HTTP or HTTPS") != std::string::npos);
 }
+
+TEST_CASE("WinHTTP client rejects unbounded timeout and body options before connecting") {
+    saors::WinHttpClient client;
+
+    saors::HttpRequestOptions noTimeout;
+    noTimeout.connectTimeoutMilliseconds = 0;
+    const auto timeout = client.get("https://example.invalid/live", noTimeout);
+    CHECK_FALSE(timeout);
+    CHECK(timeout.error == "HTTP timeouts must be greater than zero");
+
+    saors::HttpRequestOptions noBodyLimit;
+    noBodyLimit.maximumResponseBytes = 0;
+    const auto bodyLimit = client.get("https://example.invalid/list.m3u", noBodyLimit);
+    CHECK_FALSE(bodyLimit);
+    CHECK(bodyLimit.error == "maximum HTTP response size must be greater than zero");
+}

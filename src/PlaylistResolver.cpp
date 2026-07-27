@@ -167,6 +167,9 @@ class ResolutionAttempt {
             options_.maximumDepth == 0) {
             return Result<ResolvedStream>::fail("playlist limits must be greater than zero");
         }
+        if (options_.connectTimeoutMilliseconds == 0 || options_.receiveTimeoutMilliseconds == 0) {
+            return Result<ResolvedStream>::fail("playlist timeouts must be greater than zero");
+        }
         return resolveResource(configuredUrl_, 0);
     }
 
@@ -296,6 +299,7 @@ class ResolutionAttempt {
             }
             if (selected.error == "playlist cycle detected" ||
                 selected.error == "playlist nesting limit exceeded" ||
+                selected.error == "HTTP request cancelled" ||
                 selected.error == "HLS playlist detected but HLS resolution is not implemented") {
                 return selected;
             }

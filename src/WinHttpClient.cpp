@@ -292,6 +292,13 @@ Result<HttpResponse> WinHttpClient::get(const std::string& url,
         if (options.cancelled()) {
             return Result<HttpResponse>::fail("HTTP request cancelled");
         }
+        if (options.connectTimeoutMilliseconds == 0 || options.receiveTimeoutMilliseconds == 0) {
+            return Result<HttpResponse>::fail("HTTP timeouts must be greater than zero");
+        }
+        if (options.readBody && options.maximumResponseBytes == 0) {
+            return Result<HttpResponse>::fail(
+                "maximum HTTP response size must be greater than zero");
+        }
         const auto parsed = parseHttpUrl(url);
         if (!parsed) {
             return Result<HttpResponse>::fail(parsed.error);

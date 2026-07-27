@@ -288,6 +288,29 @@ TEST_CASE("Playlist limits statuses transport errors cancellation BOM and UTF-8 
         const auto cancelled = cancelledResolver.resolve("https://radio.example.com/list.m3u");
         CHECK_FALSE(cancelled);
         CHECK(cancelled.error == "HTTP request cancelled");
+
+        auto nestedCancelledClient = std::make_shared<FakeHttpClient>();
+        nestedCancelledClient->respond("https://radio.example.com/list.m3u",
+                                       response("https://radio.example.com/list.m3u",
+                                                "audio/x-mpegurl",
+                                                "https://media.example.com/live\n"));
+        nestedCancelledClient->fail("https://media.example.com/live", "HTTP request cancelled");
+        saors::PlaylistResolver nestedCancelledResolver(nestedCancelledClient);
+        const auto nestedCancelled =
+            nestedCancelledResolver.resolve("https://radio.example.com/list.m3u");
+        CHECK_FALSE(nestedCancelled);
+        CHECK(nestedCancelled.error == "HTTP request cancelled");
+    }
+
+    SECTION("zero timeouts are rejected before a request") {
+        auto client = std::make_shared<FakeHttpClient>();
+        saors::PlaylistResolver resolver(client);
+        saors::ResolveOptions options;
+        options.receiveTimeoutMilliseconds = 0;
+        const auto result = resolver.resolve("https://radio.example.com/list.m3u", options);
+        CHECK_FALSE(result);
+        CHECK(result.error == "playlist timeouts must be greater than zero");
+        CHECK(client->requestedUrls.empty());
     }
 
     SECTION("UTF-8 BOM is removed and invalid UTF-8 is rejected") {
