@@ -12,7 +12,7 @@
 
 namespace {
 
-class RecordingBackend final : public saors::AudioBackend {
+class RecordingBackend : public saors::AudioBackend {
   public:
     bool open(const std::string& url) override {
         ++openCount;
@@ -81,6 +81,25 @@ class SequenceHttpClient final : public saors::HttpClient {
     std::deque<saors::HttpResponse> responses;
 };
 
+class MediaAwareVolumeBackend final : public RecordingBackend {
+  public:
+    bool open(const std::string& url) override {
+        mediaOpen = RecordingBackend::open(url);
+        return mediaOpen;
+    }
+
+    bool setVolume(const float newVolume) override {
+        return mediaOpen && RecordingBackend::setVolume(newVolume);
+    }
+
+    void stop() noexcept override {
+        mediaOpen = false;
+        RecordingBackend::stop();
+    }
+
+    bool mediaOpen{false};
+};
+
 saors::HttpResponse httpResponse(const std::string& finalUrl, const std::string& contentType,
                                  const std::string& body = {}) {
     saors::HttpResponse result;
@@ -146,4 +165,15 @@ TEST_CASE("Stream manager re-resolves a configured playlist during reconnect") {
     CHECK(manager.configuredUrl() == "https://radio.example.com/list.m3u");
     REQUIRE(manager.lastResolution().has_value());
     CHECK(manager.lastResolution()->selectedEntryIndex == 0);
+}
+
+TEST_CASE("Stream manager opens media before applying backend volume") {
+    auto backend = std::make_unique<MediaAwareVolumeBackend>();
+    auto* recording = backend.get();
+    saors::StreamManager manager(std::move(backend));
+
+    REQUIRE(manager.start("https://media.example.com/live", 0.4F));
+
+    CHECK(recording->openedUrl == "https://media.example.com/live");
+    CHECK(recording->volume == 0.4F);
 }

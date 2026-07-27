@@ -52,8 +52,8 @@ bool StreamManager::startConfiguredUrl(const std::string& configuredUrl, const f
 }
 
 bool StreamManager::startMediaLocked(const std::string& url) {
-    if (!backend_->setBufferMilliseconds(bufferMilliseconds_) || !backend_->setVolume(volume_) ||
-        !backend_->open(url) || !backend_->play()) {
+    if (!backend_->setBufferMilliseconds(bufferMilliseconds_) || !backend_->open(url) ||
+        !backend_->setVolume(volume_) || !backend_->play()) {
         lastError_ = backend_->lastError();
         backend_->stop();
         return false;

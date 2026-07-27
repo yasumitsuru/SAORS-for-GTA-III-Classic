@@ -152,6 +152,7 @@ struct LibVlcAudioBackend::Impl {
     float volume{1.0F};
     bool hasMedia{false};
     bool pauseRequested{false};
+    bool volumePending{true};
 
     ~Impl() {
         try {
@@ -291,6 +292,7 @@ bool LibVlcAudioBackend::open(const std::string& url) {
         impl_->api.setPlayerMedia(impl_->player, media);
         impl_->api.releaseMedia(media);
         impl_->hasMedia = true;
+        impl_->volumePending = true;
         impl_->lastError.clear();
         impl_->observedState = AudioState::opening;
         return true;
@@ -371,6 +373,7 @@ void LibVlcAudioBackend::stop() noexcept {
             impl_->hasMedia = false;
         }
         impl_->pauseRequested = false;
+        impl_->volumePending = true;
         impl_->lastError.clear();
         impl_->observedState = AudioState::stopped;
     } catch (...) {
@@ -387,12 +390,17 @@ bool LibVlcAudioBackend::setVolume(const float volume) {
             return false;
         }
         const int percentage = static_cast<int>(std::lround(volume * 100.0F));
-        if (impl_->api.setAudioVolume(impl_->player, percentage) != 0) {
-            impl_->lastError = lastLibVlcError(impl_->api, "libVLC rejected the volume");
-            impl_->observedState = AudioState::error;
-            return false;
-        }
         impl_->volume = volume;
+        impl_->volumePending = true;
+        if (impl_->hasMedia && (impl_->observedState == AudioState::playing ||
+                                impl_->observedState == AudioState::paused)) {
+            if (impl_->api.setAudioVolume(impl_->player, percentage) != 0) {
+                impl_->lastError = lastLibVlcError(impl_->api, "libVLC rejected the volume");
+                impl_->observedState = AudioState::error;
+                return false;
+            }
+            impl_->volumePending = false;
+        }
         impl_->lastError.clear();
         return true;
     } catch (...) {
@@ -438,6 +446,12 @@ AudioState LibVlcAudioBackend::state() const noexcept {
             return AudioState::error;
         }
         const auto mapped = mapState(nativeState);
+        if (mapped == AudioState::playing && impl_->volumePending) {
+            const int percentage = static_cast<int>(std::lround(impl_->volume * 100.0F));
+            if (impl_->api.setAudioVolume(impl_->player, percentage) == 0) {
+                impl_->volumePending = false;
+            }
+        }
         if (mapped == AudioState::error) {
             impl_->lastError = lastLibVlcError(impl_->api, "libVLC reported a playback error");
         }
