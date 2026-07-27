@@ -45,3 +45,7 @@ Thumbs.db
 *.pem
 *.pfx
 *.key
+
+# Local executable research reports
+/research/local/**
+*.exe-profile.local.json

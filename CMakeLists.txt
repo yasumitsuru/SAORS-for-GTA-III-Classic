@@ -129,6 +129,7 @@ if(SAORS_ENABLE_EXECUTABLE_FINGERPRINTING)
         saors_core
         PRIVATE
             src/ExecutableFingerprint.cpp
+            src/ExecutableReport.cpp
             src/PeImageReader.cpp
     )
     if(WIN32)
@@ -211,6 +212,40 @@ if(SAORS_BUILD_STREAM_PROBE)
             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
     )
     saors_enable_warnings(saors_stream_probe)
+endif()
+
+if(SAORS_BUILD_EXE_PROBE)
+    if(NOT WIN32)
+        message(FATAL_ERROR "SAORS_BUILD_EXE_PROBE requires a Windows target toolchain.")
+    endif()
+    if(NOT SAORS_ENABLE_EXECUTABLE_FINGERPRINTING)
+        message(
+            FATAL_ERROR
+            "SAORS_BUILD_EXE_PROBE requires SAORS_ENABLE_EXECUTABLE_FINGERPRINTING=ON."
+        )
+    endif()
+    if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
+        message(FATAL_ERROR "saors_exe_probe must be built for Windows x86.")
+    endif()
+    add_executable(saors_exe_probe tools/exe_probe/Main.cpp)
+    target_link_libraries(saors_exe_probe PRIVATE saors_core)
+    target_compile_definitions(
+        saors_exe_probe
+        PRIVATE
+            SAORS_EXE_PROBE_VERSION="${SAORS_VERSION}"
+            WIN32_LEAN_AND_MEAN
+            NOMINMAX
+    )
+    set_target_properties(
+        saors_exe_probe
+        PROPERTIES
+            OUTPUT_NAME "saors_exe_probe"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+    )
+    if(MINGW)
+        target_link_options(saors_exe_probe PRIVATE -municode -static-libgcc -static-libstdc++)
+    endif()
+    saors_enable_warnings(saors_exe_probe)
 endif()
 
 if(SAORS_BUILD_TESTS)

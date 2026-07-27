@@ -21,6 +21,7 @@ jobs:
           -DSAORS_BUILD_ASI=OFF
           -DSAORS_BUILD_TESTS=ON
           -DSAORS_BUILD_STREAM_PROBE=ON
+          -DSAORS_BUILD_EXE_PROBE=OFF
           -DSAORS_ENABLE_LIBVLC=OFF
           -DSAORS_ENABLE_NETWORK_TESTS=OFF
           -DSAORS_ENABLE_WARNINGS_AS_ERRORS=ON
@@ -50,6 +51,7 @@ jobs:
         run: >
           cmake --preset linux-mingw-x86-release
           -DSAORS_BUILD_STREAM_PROBE=ON
+          -DSAORS_BUILD_EXE_PROBE=ON
           -DSAORS_ENABLE_LIBVLC=OFF
           -DSAORS_ENABLE_NETWORK_TESTS=OFF
           -DSAORS_ENABLE_WARNINGS_AS_ERRORS=ON
@@ -61,10 +63,14 @@ jobs:
         run: |
           file build/linux-mingw-x86-release/bin/SAORSForGTA3.asi
           file build/linux-mingw-x86-release/bin/saors_stream_probe.exe
+          file build/linux-mingw-x86-release/bin/saors_exe_probe.exe
 
       - name: Upload ASI
         uses: actions/upload-artifact@v7
         with:
           name: SAORSForGTA3-mingw-x86
-          path: build/linux-mingw-x86-release/bin/SAORSForGTA3.asi
+          path: |
+            build/linux-mingw-x86-release/bin/SAORSForGTA3.asi
+            build/linux-mingw-x86-release/bin/saors_stream_probe.exe
+            build/linux-mingw-x86-release/bin/saors_exe_probe.exe
           if-no-files-found: error
