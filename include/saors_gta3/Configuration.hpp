@@ -41,8 +41,15 @@ struct StationConfiguration {
     bool allowHttp{false};
 };
 
+struct ExperimentalConfiguration {
+    bool enableGameObserver{false};
+    bool observerDryRun{true};
+    bool logStateTransitions{true};
+};
+
 struct ConfigurationData {
     GeneralConfiguration general;
+    ExperimentalConfiguration experimental;
     std::map<std::string, StationConfiguration> stations;
 };
 

@@ -160,30 +160,32 @@ TEST_CASE("Empty and malformed profile registries never recognize an executable"
     CHECK_FALSE(invalid.match(fingerprint()).exact());
 }
 
-TEST_CASE("Game integration recognizes an exact candidate but keeps all hooks and reads inert") {
+TEST_CASE("Game integration recognizes an exact candidate but defaults to no observer") {
     const saors::ExecutableProfileRegistry registry({profile()});
     saors::GameIntegration game(registry);
 
     CHECK(game.detectExecutableVersion(fingerprint()) ==
-          saors::ExecutableVersion::gta3_classic_local_unmapped);
+          saors::ExecutableVersion::gta3_classic_local_candidate);
     CHECK(game.detectedExecutableDescription() == "GTA III Classic local candidate");
     CHECK(game.fingerprintStatusDescription() == "exact fingerprint match");
     CHECK(game.verificationStatusDescription() == "candidate");
     CHECK(game.fileFingerprintMatch());
     CHECK(game.textFingerprintMatch());
+    game.configureObserver(false, false, true);
     CHECK_FALSE(game.installHooks());
-    CHECK(game.currentStation() == -1);
-    CHECK_FALSE(game.isPlayerInVehicle());
-    CHECK_FALSE(game.isPauseMenuActive());
-    CHECK(game.radioVolume() == 1.0F);
+    const auto snapshot = game.gameStateSnapshot();
+    CHECK_FALSE(snapshot.observerAvailable);
+    CHECK_FALSE(snapshot.pauseMenuActive);
+    CHECK_FALSE(snapshot.playerInVehicle);
+    CHECK_FALSE(snapshot.radioStationRaw);
+    CHECK_FALSE(snapshot.radioVolume);
 }
 
 TEST_CASE("Verification and match state names remain explicit") {
     CHECK(std::string(saors::executableVerificationStatusName(
               saors::ExecutableVerificationStatus::candidate)) == "candidate");
     CHECK(std::string(saors::executableVerificationStatusName(
-              saors::ExecutableVerificationStatus::locallyReproduced)) ==
-          "locally_reproduced");
+              saors::ExecutableVerificationStatus::locallyReproduced)) == "locally_reproduced");
     CHECK(std::string(saors::executableVerificationStatusName(
               saors::ExecutableVerificationStatus::independentlyReproduced)) ==
           "independently_reproduced");

@@ -1,11 +1,13 @@
 #include "saors_gta3/Logger.hpp"
 
 #include <chrono>
+#include <cstdint>
 #include <ctime>
 #include <fstream>
 #include <iomanip>
 #include <mutex>
 #include <sstream>
+#include <system_error>
 #include <utility>
 
 namespace saors {
@@ -16,6 +18,8 @@ struct LoggerState {
     std::filesystem::path path{"SAORSForGTA3.log"};
     LogLevel minimumLevel{LogLevel::info};
 };
+
+constexpr std::uintmax_t maximumLogBytes = 1024U * 1024U;
 
 LoggerState& loggerState() {
     // This process-lifetime allocation intentionally has no DLL-detach destructor.
@@ -57,6 +61,13 @@ void Logger::log(const LogLevel level, const std::string_view message) noexcept 
         const std::lock_guard<std::mutex> lock(state.mutex);
         if (level == LogLevel::off || state.minimumLevel == LogLevel::off ||
             severity(level) < severity(state.minimumLevel)) {
+            return;
+        }
+
+        std::error_code sizeError;
+        const auto currentSize = std::filesystem::file_size(state.path, sizeError);
+        if (!sizeError &&
+            (currentSize >= maximumLogBytes || message.size() > maximumLogBytes - currentSize)) {
             return;
         }
 

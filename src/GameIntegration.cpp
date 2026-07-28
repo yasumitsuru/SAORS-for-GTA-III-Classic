@@ -1,5 +1,6 @@
 #include "saors_gta3/GameIntegration.hpp"
 
+#include "saors_gta3/GameAddressProfile.hpp"
 #include "saors_gta3/Logger.hpp"
 
 namespace saors {
@@ -12,6 +13,10 @@ GameIntegration::GameIntegration() {
 
 GameIntegration::GameIntegration(const ExecutableProfileRegistry& registry)
     : registry_(&registry) {}
+
+GameIntegration::~GameIntegration() {
+    removeHooks();
+}
 
 ExecutableVersion
 GameIntegration::detectExecutableVersion(const ExecutableFingerprint& fingerprint) {
@@ -26,7 +31,7 @@ GameIntegration::detectExecutableVersion(const ExecutableFingerprint& fingerprin
     if (match_.exact()) {
         switch (match_.id) {
         case ExecutableProfileId::gta3_classic_local_candidate:
-            detectedVersion_ = ExecutableVersion::gta3_classic_local_unmapped;
+            detectedVersion_ = ExecutableVersion::gta3_classic_local_candidate;
             break;
         case ExecutableProfileId::gta3_10_us_candidate:
             detectedVersion_ = ExecutableVersion::gta3_10_us_unmapped;
@@ -38,17 +43,83 @@ GameIntegration::detectExecutableVersion(const ExecutableFingerprint& fingerprin
     return detectedVersion_;
 }
 
+void GameIntegration::configureObserver(const bool enabled, const bool dryRun,
+                                        const bool logStateTransitions) noexcept {
+    observerEnabled_ = enabled;
+    observerDryRun_ = dryRun;
+    logStateTransitions_ = logStateTransitions;
+}
+
 bool GameIntegration::installHooks() {
-#if defined(SAORS_ENABLE_EXPERIMENTAL_HOOKS)
-    Logger::warning("Experimental hooks were requested, but no verified executable map exists; "
-                    "hooks remain disabled");
-#endif
-    Logger::info("Hooks: disabled");
     hooksInstalled_ = false;
+    observerResult_ = {};
+
+    if (!observerEnabled_ && !observerDryRun_) {
+        Logger::info("Observer: unavailable");
+        Logger::info("Hooks: disabled");
+        return false;
+    }
+
+#if SAORS_HAS_EXPERIMENTAL_GAME_OBSERVER
+    if (!match_.exact() || !match_.verificationStatus) {
+        Logger::warning("Observer: unavailable");
+        Logger::info("Hooks: disabled");
+        return false;
+    }
+
+    const auto* addressProfile = findGameAddressProfile(match_.id, *match_.verificationStatus);
+    if (addressProfile == nullptr) {
+        Logger::warning("Observer: unavailable");
+        Logger::info("Hooks: disabled");
+        return false;
+    }
+    Logger::info("Address profile: gta3_classic_local_candidate");
+
+    observer_ = createExperimentalGameObserver(*addressProfile, logStateTransitions_);
+    const bool dryRun = observerDryRun_ || !observerEnabled_;
+    observerResult_ = observer_->start(dryRun);
+    if (observerResult_.status == ObserverInstallStatus::dryRunCompatible) {
+        Logger::info("Observer dry-run: compatible");
+        Logger::info("Expected bytes: matched");
+        Logger::info("Hook writes performed: false");
+        Logger::info("Hooks: disabled");
+        return false;
+    }
+    if (observerResult_.status == ObserverInstallStatus::dryRunIncompatible) {
+        Logger::warning("Observer dry-run: incompatible");
+        Logger::warning("Expected bytes: not matched");
+        if (observerResult_.failedSymbol) {
+            Logger::warning(std::string("Observer validation failed: ") +
+                            gameSymbolName(*observerResult_.failedSymbol));
+        }
+        Logger::info("Hook writes performed: false");
+        Logger::info("Hooks: disabled");
+        return false;
+    }
+    if (observerResult_.status == ObserverInstallStatus::installed) {
+        hooksInstalled_ = true;
+        Logger::info("Observer: installed");
+        Logger::info("Expected bytes: matched");
+        Logger::info("Hook writes performed: true");
+        return true;
+    }
+
+    Logger::warning("Observer: failed");
+    Logger::info(std::string("Hook writes performed: ") +
+                 (observerResult_.hookWritesPerformed ? "true" : "false"));
+    Logger::info("Hooks: disabled");
     return false;
+#else
+    Logger::warning("Observer: unavailable in this build");
+    Logger::info("Hooks: disabled");
+    return false;
+#endif
 }
 
 void GameIntegration::removeHooks() noexcept {
+    if (observer_) {
+        static_cast<void>(observer_->stop());
+    }
     hooksInstalled_ = false;
 }
 
@@ -68,9 +139,21 @@ float GameIntegration::radioVolume() const noexcept {
     return 1.0F;
 }
 
+GameStateSnapshot GameIntegration::gameStateSnapshot() const noexcept {
+    return observer_ ? observer_->snapshot() : GameStateSnapshot{};
+}
+
+ObserverInstallResult GameIntegration::observerInstallResult() const noexcept {
+    return observerResult_;
+}
+
+std::string GameIntegration::observerStatusDescription() const {
+    return observerInstallStatusName(observerResult_.status);
+}
+
 std::string GameIntegration::detectedExecutableDescription() const {
     switch (detectedVersion_) {
-    case ExecutableVersion::gta3_classic_local_unmapped:
+    case ExecutableVersion::gta3_classic_local_candidate:
     case ExecutableVersion::gta3_10_us_unmapped:
         return match_.profileName;
     case ExecutableVersion::unsupported:
