@@ -3,13 +3,20 @@
 ## Current verified map
 
 The fingerprinting mechanism and one real GTA III Classic identity record are
-implemented. No address, signature, offset, calling convention, memory read,
-patch, or hook is verified in this repository.
+implemented. Phase 3B separately registers the smallest runtime map needed for
+read-only observation after local expected-byte and behavior reproduction.
 
 | Executable adapter | Fingerprint | Evidence | Hook status |
 | --- | --- | --- | --- |
-| GTA III Classic local candidate | Exact profile registered | Two identical local runs; `locally_reproduced`; edition/region unverified | Disabled; adapter unmapped |
+| GTA III Classic local candidate | Exact profile registered | `locally_reproduced`; edition/region unverified; plugin-sdk `GAME_10EN` structural match only | Shared default disabled; experimental five-byte callback validated |
 | GTA III 1.0 US | No exact profile | Research target; independent evidence pending | Disabled |
+
+The map covers only the game-process callback, `FindPlayerVehicle`,
+`FrontEndMenuManager` readiness/pause fields, `DMAudio.GetRadioInCar`, and the
+music-preference integer. Addresses, calling conventions, layouts, and minimal
+expected-byte windows are recorded in
+[Pinned plugin-sdk audit](PLUGIN_SDK_AUDIT.md). The executable fingerprint and
+address profile remain separate registries.
 
 ## Research rules
 
@@ -47,11 +54,13 @@ Copyright and disclosure review:
 3. Implement the adapter behind `GameIntegration`.
 4. Verify every signature before reading or writing the target location.
 5. Install all hooks transactionally; rollback on any mismatch.
-6. Keep `SAORS_ENABLE_EXPERIMENTAL_HOOKS=OFF` as the shared default.
+6. Keep `SAORS_ENABLE_EXPERIMENTAL_GAME_OBSERVER=OFF` as the shared default.
 7. Perform game smoke tests on a disposable backup before requesting review.
 
 Never fill a missing address with an estimate or a value copied without provenance.
 
-Phase 3B may evaluate pinned `plugin_III` support from plugin-sdk only after an
-exact commit and license review. Every consumed symbol and address must be audited,
-validated on an exactly recognized executable, and protected by a safe fallback.
+Phase 3B evaluated `plugin_III` only at the exact commit recorded in
+`THIRD_PARTY_NOTICES.md`. The dependency remains optional, and every consumed
+symbol is independently gated by the exact local fingerprint, minimum evidence
+level, image bounds, and expected bytes. A failure keeps the observer unavailable
+without trying another game-version map.

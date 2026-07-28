@@ -55,6 +55,9 @@ TEST_CASE("Default configuration is safe and enabled") {
     CHECK(configuration.general.playlistMaximumDepth == 3);
     CHECK(configuration.general.volumeMultiplier == Catch::Approx(1.0F));
     CHECK(configuration.general.logLevel == saors::LogLevel::info);
+    CHECK_FALSE(configuration.experimental.enableGameObserver);
+    CHECK(configuration.experimental.observerDryRun);
+    CHECK(configuration.experimental.logStateTransitions);
     CHECK(configuration.stations.empty());
 }
 
@@ -74,6 +77,11 @@ PlaylistMaximumRedirects=2
 PlaylistMaximumDepth=2
 VolumeMultiplier=0.75
 LogLevel=debug
+
+[Experimental]
+EnableGameObserver=true
+ObserverDryRun=false
+LogStateTransitions=false
 
 [Station.HeadRadio]
 Enabled=true
@@ -99,6 +107,9 @@ AllowHttp=true
     CHECK(result.value.general.playlistMaximumDepth == 2);
     CHECK(result.value.general.volumeMultiplier == Catch::Approx(0.75F));
     CHECK(result.value.general.logLevel == saors::LogLevel::debug);
+    CHECK(result.value.experimental.enableGameObserver);
+    CHECK_FALSE(result.value.experimental.observerDryRun);
+    CHECK_FALSE(result.value.experimental.logStateTransitions);
 
     REQUIRE(result.value.stations.count("HeadRadio") == 1);
     const auto& station = result.value.stations.at("HeadRadio");
@@ -114,6 +125,10 @@ TEST_CASE("Boolean configuration accepts common explicit forms") {
 Enabled=no
 Reconnect=ON
 
+[Experimental]
+EnableGameObserver=0
+ObserverDryRun=yes
+
 [Station.HeadRadio]
 Enabled=1
 )ini"};
@@ -123,6 +138,8 @@ Enabled=1
     REQUIRE(result.success);
     CHECK_FALSE(result.value.general.enabled);
     CHECK(result.value.general.reconnect);
+    CHECK_FALSE(result.value.experimental.enableGameObserver);
+    CHECK(result.value.experimental.observerDryRun);
     CHECK(result.value.stations.at("HeadRadio").enabled);
 }
 
@@ -134,6 +151,9 @@ BufferMilliseconds=-10
 ReconnectDelayMilliseconds=lots
 VolumeMultiplier=NaN
 
+[Experimental]
+EnableGameObserver=perhaps
+
 [Station.HeadRadio]
 Enabled=maybe
 )ini"};
@@ -141,12 +161,30 @@ Enabled=maybe
     const auto result = saors::Configuration::load(file.path());
 
     CHECK_FALSE(result.success);
-    CHECK(result.errors.size() == 5);
+    CHECK(result.errors.size() == 6);
     CHECK(result.value.general.enabled);
     CHECK(result.value.general.bufferMilliseconds == 3000);
     CHECK(result.value.general.reconnectDelayMilliseconds == 5000);
     CHECK(result.value.general.volumeMultiplier == Catch::Approx(1.0F));
     CHECK_FALSE(result.value.stations.at("HeadRadio").enabled);
+}
+
+TEST_CASE("Unknown experimental keys are ignored with a warning") {
+    const TemporaryIni file{R"ini(
+[General]
+Enabled=true
+
+[Experimental]
+EnableGameObserver=false
+UnknownObserverOption=true
+)ini"};
+
+    const auto result = saors::Configuration::load(file.path());
+
+    REQUIRE(result.success);
+    CHECK_FALSE(result.value.experimental.enableGameObserver);
+    REQUIRE_FALSE(result.warnings.empty());
+    CHECK(result.warnings.front().find("UnknownObserverOption") != std::string::npos);
 }
 
 TEST_CASE("Missing sections use defaults and produce warnings") {

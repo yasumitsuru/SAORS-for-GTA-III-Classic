@@ -234,6 +234,28 @@ void assignStationValue(ConfigurationResult& result, const std::string& stationK
     }
 }
 
+void assignExperimentalValue(ConfigurationResult& result, const std::string& key,
+                             const std::string& value, const std::size_t lineNumber) {
+    const auto normalizedKey = lowercase(key);
+    auto& experimental = result.value.experimental;
+    const auto parsed = parseBoolean(value);
+    if (!parsed.has_value()) {
+        addInvalidValueError(result, lineNumber, key, "a boolean");
+        return;
+    }
+
+    if (normalizedKey == "enablegameobserver") {
+        experimental.enableGameObserver = *parsed;
+    } else if (normalizedKey == "observerdryrun") {
+        experimental.observerDryRun = *parsed;
+    } else if (normalizedKey == "logstatetransitions") {
+        experimental.logStateTransitions = *parsed;
+    } else {
+        result.warnings.push_back("line " + std::to_string(lineNumber) +
+                                  ": unknown Experimental key '" + key + "'");
+    }
+}
+
 } // namespace
 
 ConfigurationData Configuration::defaults() {
@@ -289,6 +311,8 @@ ConfigurationResult Configuration::load(const std::filesystem::path& path) {
 
         if (lowercase(currentSection) == "general") {
             assignGeneralValue(result, key, value, lineNumber);
+        } else if (lowercase(currentSection) == "experimental") {
+            assignExperimentalValue(result, key, value, lineNumber);
         } else if (currentSection.rfind("Station.", 0) == 0 && currentSection.size() > 8) {
             assignStationValue(result, currentSection.substr(8), key, value, lineNumber);
         } else if (currentSection.empty()) {

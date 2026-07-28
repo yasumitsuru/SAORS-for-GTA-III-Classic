@@ -21,7 +21,9 @@
         "SAORS_BUILD_STREAM_PROBE": "ON",
         "SAORS_ENABLE_LIBVLC": "OFF",
         "SAORS_ENABLE_NETWORK_TESTS": "OFF",
-        "SAORS_ENABLE_EXPERIMENTAL_HOOKS": "OFF"
+        "SAORS_ENABLE_PLUGIN_SDK": "OFF",
+        "SAORS_FETCH_PLUGIN_SDK": "OFF",
+        "SAORS_ENABLE_EXPERIMENTAL_GAME_OBSERVER": "OFF"
       },
       "condition": {
         "type": "equals",
@@ -48,7 +50,9 @@
         "SAORS_BUILD_STREAM_PROBE": "ON",
         "SAORS_ENABLE_LIBVLC": "OFF",
         "SAORS_ENABLE_NETWORK_TESTS": "OFF",
-        "SAORS_ENABLE_EXPERIMENTAL_HOOKS": "OFF"
+        "SAORS_ENABLE_PLUGIN_SDK": "OFF",
+        "SAORS_FETCH_PLUGIN_SDK": "OFF",
+        "SAORS_ENABLE_EXPERIMENTAL_GAME_OBSERVER": "OFF"
       },
       "condition": {
         "type": "equals",

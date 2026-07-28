@@ -24,8 +24,15 @@ option(
     ON
 )
 option(SAORS_ENABLE_NETWORK_TESTS "Build opt-in network playback tests" OFF)
-option(SAORS_ENABLE_EXPERIMENTAL_HOOKS "Enable unverified experimental game hooks" OFF)
+option(SAORS_ENABLE_PLUGIN_SDK "Enable the optional plugin-sdk compile integration" OFF)
+option(SAORS_FETCH_PLUGIN_SDK "Fetch the pinned plugin-sdk revision at configure time" OFF)
+option(
+    SAORS_ENABLE_EXPERIMENTAL_GAME_OBSERVER
+    "Build the guarded experimental read-only game-state observer"
+    OFF
+)
 set(SAORS_LIBVLC_ROOT "" CACHE PATH "Root of an externally supplied libVLC SDK/runtime")
+set(SAORS_PLUGIN_SDK_ROOT "" CACHE PATH "Root of an external plugin-sdk checkout")
 set(SAORS_TEST_STREAM_URL "" CACHE STRING "Private URL for opt-in network tests")
 set(SAORS_PLUGIN_SUFFIX ".asi" CACHE STRING "Plugin suffix (override only for diagnostics)")
 mark_as_advanced(SAORS_PLUGIN_SUFFIX SAORS_TEST_STREAM_URL)
@@ -34,11 +41,137 @@ if(SAORS_ENABLE_NETWORK_TESTS AND NOT SAORS_BUILD_TESTS)
     message(FATAL_ERROR "SAORS_ENABLE_NETWORK_TESTS requires SAORS_BUILD_TESTS=ON.")
 endif()
 
+if(SAORS_FETCH_PLUGIN_SDK AND NOT SAORS_ENABLE_PLUGIN_SDK)
+    message(FATAL_ERROR "SAORS_FETCH_PLUGIN_SDK requires SAORS_ENABLE_PLUGIN_SDK=ON.")
+endif()
+
+if(SAORS_ENABLE_EXPERIMENTAL_GAME_OBSERVER)
+    if(NOT SAORS_ENABLE_PLUGIN_SDK)
+        message(
+            FATAL_ERROR
+            "SAORS_ENABLE_EXPERIMENTAL_GAME_OBSERVER requires SAORS_ENABLE_PLUGIN_SDK=ON."
+        )
+    endif()
+    if(NOT SAORS_ENABLE_EXECUTABLE_FINGERPRINTING)
+        message(
+            FATAL_ERROR
+            "The experimental observer requires executable fingerprinting."
+        )
+    endif()
+    if(NOT MSVC OR NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
+        message(FATAL_ERROR "The experimental observer currently requires MSVC Windows x86.")
+    endif()
+endif()
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
+set(SAORS_PLUGIN_SDK_COMMIT "5da18b6f1956bb20bdfa39dcb07c44863ce26c81")
+set(SAORS_RESOLVED_PLUGIN_SDK_ROOT "")
+if(SAORS_ENABLE_PLUGIN_SDK)
+    if(NOT WIN32 OR NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
+        message(FATAL_ERROR "plugin_III compile integration requires a Windows x86 target.")
+    endif()
+
+    if(SAORS_FETCH_PLUGIN_SDK)
+        include(FetchContent)
+        FetchContent_Declare(
+            saors_plugin_sdk
+            GIT_REPOSITORY https://github.com/DK22Pac/plugin-sdk.git
+            GIT_TAG "${SAORS_PLUGIN_SDK_COMMIT}"
+            GIT_SHALLOW FALSE
+        )
+        FetchContent_GetProperties(saors_plugin_sdk)
+        if(NOT saors_plugin_sdk_POPULATED)
+            FetchContent_Populate(saors_plugin_sdk)
+        endif()
+        set(SAORS_RESOLVED_PLUGIN_SDK_ROOT "${saors_plugin_sdk_SOURCE_DIR}")
+    elseif(NOT SAORS_PLUGIN_SDK_ROOT STREQUAL "")
+        get_filename_component(
+            SAORS_RESOLVED_PLUGIN_SDK_ROOT
+            "${SAORS_PLUGIN_SDK_ROOT}"
+            ABSOLUTE
+        )
+    else()
+        message(
+            FATAL_ERROR
+            "Set SAORS_PLUGIN_SDK_ROOT or enable SAORS_FETCH_PLUGIN_SDK."
+        )
+    endif()
+
+    foreach(
+        required_path
+        LICENSE
+        shared/PluginBase.h
+        shared/Events.h
+        plugin_III/plugin_III.h
+        plugin_III/game_III/common.h
+        plugin_III/game_III/CMenuManager.h
+        plugin_III/game_III/cDMAudio.h
+    )
+        if(NOT EXISTS "${SAORS_RESOLVED_PLUGIN_SDK_ROOT}/${required_path}")
+            message(FATAL_ERROR "The plugin-sdk checkout is missing ${required_path}.")
+        endif()
+    endforeach()
+
+    find_package(Git REQUIRED)
+    execute_process(
+        COMMAND "${GIT_EXECUTABLE}" -C "${SAORS_RESOLVED_PLUGIN_SDK_ROOT}" rev-parse HEAD
+        OUTPUT_VARIABLE SAORS_PLUGIN_SDK_HEAD
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        RESULT_VARIABLE SAORS_PLUGIN_SDK_GIT_RESULT
+        ERROR_QUIET
+    )
+    if(
+        NOT SAORS_PLUGIN_SDK_GIT_RESULT EQUAL 0
+        OR NOT SAORS_PLUGIN_SDK_HEAD STREQUAL SAORS_PLUGIN_SDK_COMMIT
+    )
+        message(
+            FATAL_ERROR
+            "SAORS_PLUGIN_SDK_ROOT must be a Git checkout at ${SAORS_PLUGIN_SDK_COMMIT}."
+        )
+    endif()
+
+    add_library(saors_plugin_sdk_reference INTERFACE)
+    target_include_directories(
+        saors_plugin_sdk_reference
+        SYSTEM
+        INTERFACE
+            "${SAORS_RESOLVED_PLUGIN_SDK_ROOT}/shared"
+            "${SAORS_RESOLVED_PLUGIN_SDK_ROOT}/shared/game"
+            "${SAORS_RESOLVED_PLUGIN_SDK_ROOT}/shared/dxsdk"
+            "${SAORS_RESOLVED_PLUGIN_SDK_ROOT}/plugin_III"
+            "${SAORS_RESOLVED_PLUGIN_SDK_ROOT}/plugin_III/game_III"
+            "${SAORS_RESOLVED_PLUGIN_SDK_ROOT}/plugin_III/game_III/enums"
+            "${SAORS_RESOLVED_PLUGIN_SDK_ROOT}/plugin_III/game_III/rw"
+    )
+    target_compile_definitions(
+        saors_plugin_sdk_reference
+        INTERFACE
+            GTA3
+            PLUGIN_SGV_10EN
+            RW
+            _CRT_NON_CONFORMING_SWPRINTFS
+            _SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING
+    )
+
+    add_library(
+        saors_plugin_sdk_compile_probe
+        OBJECT
+            cmake/PluginSdkCompileProbe.cpp
+    )
+    target_link_libraries(
+        saors_plugin_sdk_compile_probe
+        PRIVATE saors_plugin_sdk_reference
+    )
+    # This pinned plugin-sdk revision uses concepts and std::expected, matching
+    # its upstream premake policy of C++latest. Keep that requirement isolated
+    # from the C++17 project targets.
+    target_compile_features(saors_plugin_sdk_compile_probe PRIVATE cxx_std_23)
+endif()
 
 if(MSVC)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
@@ -66,15 +199,23 @@ function(saors_enable_warnings target)
     endif()
 endfunction()
 
+if(TARGET saors_plugin_sdk_compile_probe)
+    saors_enable_warnings(saors_plugin_sdk_compile_probe)
+endif()
+
 add_library(
     saors_core
     STATIC
         src/AudioBackend.cpp
         src/AudioBackendFactory.cpp
         src/Configuration.cpp
+        src/GameAddressProfile.cpp
         src/GameIntegration.cpp
+        src/GameObserver.cpp
+        src/GameState.cpp
         src/HttpUrl.cpp
         src/Logger.cpp
+        src/MemoryPatch.cpp
         src/PlaylistParser.cpp
         src/PlaylistResolver.cpp
         src/RadioController.cpp
@@ -141,10 +282,17 @@ if(SAORS_ENABLE_EXECUTABLE_FINGERPRINTING)
     set(SAORS_HAS_EXECUTABLE_FINGERPRINTING 1)
 endif()
 
+set(SAORS_HAS_EXPERIMENTAL_GAME_OBSERVER 0)
+if(SAORS_ENABLE_EXPERIMENTAL_GAME_OBSERVER)
+    target_sources(saors_core PRIVATE src/WindowsGameObserver.cpp)
+    set(SAORS_HAS_EXPERIMENTAL_GAME_OBSERVER 1)
+endif()
+
 target_compile_definitions(
     saors_core
     PUBLIC
         SAORS_HAS_EXECUTABLE_FINGERPRINTING=${SAORS_HAS_EXECUTABLE_FINGERPRINTING}
+        SAORS_HAS_EXPERIMENTAL_GAME_OBSERVER=${SAORS_HAS_EXPERIMENTAL_GAME_OBSERVER}
         SAORS_HAS_LIBVLC=${SAORS_HAS_LIBVLC}
         SAORS_HAS_WINHTTP=${SAORS_HAS_WINHTTP}
 )
@@ -174,7 +322,6 @@ if(SAORS_BUILD_ASI)
             SAORS_PLUGIN_VERSION="${SAORS_VERSION}"
             WIN32_LEAN_AND_MEAN
             NOMINMAX
-            $<$<BOOL:${SAORS_ENABLE_EXPERIMENTAL_HOOKS}>:SAORS_ENABLE_EXPERIMENTAL_HOOKS=1>
     )
     set_target_properties(
         SAORSForGTA3
@@ -268,6 +415,7 @@ if(SAORS_BUILD_TESTS)
         saors_tests
         tests/AudioBackendFactoryTests.cpp
         tests/ConfigurationTests.cpp
+        tests/GameObserverTests.cpp
         tests/HttpUrlTests.cpp
         tests/LibVlcAudioBackendTests.cpp
         tests/PlaylistParserTests.cpp

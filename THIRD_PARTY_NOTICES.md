@@ -48,13 +48,51 @@ review is required before any future release bundles external VLC binaries.
 Developers and users must obtain their own compatible Win32 SDK/runtime and retain
 the license and notice files supplied by VideoLAN.
 
+## Optional build-time reference
+
+### plugin-sdk / plugin_III
+
+- Purpose: optional Windows x86 compile probe and research reference for the
+  guarded read-only GTA III observer.
+- Source: <https://github.com/DK22Pac/plugin-sdk>
+- Pinned revision: `5da18b6f1956bb20bdfa39dcb07c44863ce26c81`.
+- Acquisition: disabled by default; either an external exact Git checkout or an
+  explicit CMake `FetchContent` opt-in.
+- License: zlib-style terms reproduced below.
+- Redistribution: no plugin-sdk source or binary is committed to or distributed
+  by this project, and it is not linked into the ASI.
+
+```text
+Copyright (c) 2013-2014 Dmitry K. <>
+Copyright (c) 2013-2014 fastman92 <>
+Copyright (c) 2014 LINK/2012 <dma_2012@hotmail.com>
+
+This software is provided 'as-is', without any express or implied
+warranty. In no event will the authors be held liable for any damages
+arising from the use of this software.
+
+Permission is granted to anyone to use this software for any purpose,
+including commercial applications, and to alter it and redistribute it
+freely, subject to the following restrictions:
+
+   1. The origin of this software must not be misrepresented; you must not
+   claim that you wrote the original software. If you use this software
+   in a product, an acknowledgment in the product documentation would be
+   appreciated but is not required.
+
+   2. Altered source versions must be plainly marked as such, and must not be
+   misrepresented as being the original software.
+
+   3. This notice may not be removed or altered from any source
+   distribution.
+```
+
 ## Evaluated future integration
 
 The following are candidates, not dependencies of version 0.1.0:
 
 | Project | Relevant capabilities | License/packaging consideration | Decision |
 | --- | --- | --- | --- |
-| plugin-sdk | GTA III C++ integration helpers | MIT; external project | Defer until verified hooks require it |
 | FFmpeg libraries | HTTP/TLS protocols and MP3/AAC decoding | LGPL-2.1+ only with a compliant configuration; optional GPL/nonfree parts change obligations | Viable low-level candidate; higher integration and compliance cost |
 | miniaudio | Small Windows audio-device layer and MP3 decoding | Public domain or MIT; no built-in networking and no stock AAC decoder | Useful output layer, insufficient alone |
 | BASS/BASS_AAC | Win32 internet streams and common radio codecs | Proprietary/custom licensing and additional AAC considerations | Do not download, commit, or redistribute without a separate license review |

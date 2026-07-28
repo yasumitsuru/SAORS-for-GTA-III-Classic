@@ -4,8 +4,8 @@
 #include "saors_gta3/FileHasher.hpp"
 #include "saors_gta3/GameIntegration.hpp"
 #include "saors_gta3/Logger.hpp"
-#include "saors_gta3/PlaylistResolver.hpp"
 #include "saors_gta3/PeImageReader.hpp"
+#include "saors_gta3/PlaylistResolver.hpp"
 #include "saors_gta3/StreamManager.hpp"
 
 #if SAORS_HAS_WINHTTP
@@ -54,16 +54,18 @@ DWORD WINAPI initializePlugin(const LPVOID parameter) {
         saors::Logger::info("SAORS for GTA III Classic initialized");
         saors::Logger::info("Plugin version: " SAORS_PLUGIN_VERSION);
 
-        saors::GameIntegration game;
+        // The observer may be called for the remainder of the game process. The
+        // process-lifetime allocation intentionally avoids teardown under the
+        // loader lock if an external loader attempts to unload the ASI.
+        auto* game = new saors::GameIntegration;
 #if SAORS_HAS_EXECUTABLE_FINGERPRINTING
         const auto executablePath = modulePath(nullptr);
         auto hasher = saors::createPlatformFileHasher();
         if (!executablePath.empty() && hasher) {
             const saors::PeImageReader reader;
-            const auto fingerprint =
-                saors::fingerprintExecutable(executablePath, reader, *hasher);
+            const auto fingerprint = saors::fingerprintExecutable(executablePath, reader, *hasher);
             if (fingerprint) {
-                static_cast<void>(game.detectExecutableVersion(fingerprint.value));
+                static_cast<void>(game->detectExecutableVersion(fingerprint.value));
                 saors::Logger::info("Executable architecture: PE32 x86");
             } else {
                 saors::Logger::warning("Executable architecture: unsupported");
@@ -74,13 +76,13 @@ DWORD WINAPI initializePlugin(const LPVOID parameter) {
 #else
         saors::Logger::warning("Executable architecture: unsupported");
 #endif
-        saors::Logger::info("Executable profile: " + game.detectedExecutableDescription());
-        saors::Logger::info("Fingerprint status: " + game.fingerprintStatusDescription());
-        saors::Logger::info("Verification level: " + game.verificationStatusDescription());
+        saors::Logger::info("Executable profile: " + game->detectedExecutableDescription());
+        saors::Logger::info("Fingerprint status: " + game->fingerprintStatusDescription());
+        saors::Logger::info("Verification level: " + game->verificationStatusDescription());
         saors::Logger::info(std::string("File fingerprint match: ") +
-                            booleanName(game.fileFingerprintMatch()));
+                            booleanName(game->fileFingerprintMatch()));
         saors::Logger::info(std::string("Text fingerprint match: ") +
-                            booleanName(game.textFingerprintMatch()));
+                            booleanName(game->textFingerprintMatch()));
 
         if (configuration.success) {
             saors::Logger::info("Configuration loaded");
@@ -94,6 +96,10 @@ DWORD WINAPI initializePlugin(const LPVOID parameter) {
             saors::Logger::warning(warning);
         }
 
+        game->configureObserver(configuration.value.experimental.enableGameObserver,
+                                configuration.value.experimental.observerDryRun,
+                                configuration.value.experimental.logStateTransitions);
+
         auto backend = saors::createConfiguredAudioBackend();
 #if SAORS_HAS_WINHTTP
         auto httpClient = std::make_shared<saors::WinHttpClient>();
@@ -105,8 +111,15 @@ DWORD WINAPI initializePlugin(const LPVOID parameter) {
         saors::Logger::warning("Remote playlist resolver is unavailable in this build");
 #endif
         static_cast<void>(streams);
-        static_cast<void>(game.installHooks());
-        saors::Logger::info("Gameplay reads: disabled");
+        static_cast<void>(game->installHooks());
+        saors::Logger::info("Observer status: " + game->observerStatusDescription());
+        const auto observerResult = game->observerInstallResult();
+        saors::Logger::info(std::string("Expected-byte validation: ") +
+                            (observerResult.expectedBytesMatched ? "matched" : "not matched"));
+        saors::Logger::info(std::string("Gameplay reads: ") +
+                            (observerResult.status == saors::ObserverInstallStatus::installed
+                                 ? "read-only observer active"
+                                 : "disabled"));
         saors::Logger::info("Audio playback: not started");
         saors::Logger::info("Network activity: not started");
     } catch (...) {

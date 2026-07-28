@@ -24,6 +24,9 @@ jobs:
           -DSAORS_BUILD_EXE_PROBE=ON
           -DSAORS_ENABLE_LIBVLC=OFF
           -DSAORS_ENABLE_NETWORK_TESTS=OFF
+          -DSAORS_ENABLE_PLUGIN_SDK=OFF
+          -DSAORS_FETCH_PLUGIN_SDK=OFF
+          -DSAORS_ENABLE_EXPERIMENTAL_GAME_OBSERVER=OFF
           -DSAORS_ENABLE_WARNINGS_AS_ERRORS=ON
 
       - name: Build
@@ -47,3 +50,53 @@ jobs:
             build/ci-windows-x86/bin/Release/saors_stream_probe.exe
             build/ci-windows-x86/bin/Release/saors_exe_probe.exe
           if-no-files-found: error
+
+  plugin-sdk:
+    name: ${{ matrix.name }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: plugin-sdk compile probe
+            build: ci-plugin-sdk-x86
+            observer: OFF
+          - name: experimental observer compile and tests
+            build: ci-observer-x86
+            observer: ON
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Configure pinned plugin-sdk mode
+        run: >
+          cmake -S . -B build/${{ matrix.build }} -A Win32
+          -DSAORS_BUILD_ASI=ON
+          -DSAORS_BUILD_TESTS=ON
+          -DSAORS_BUILD_STREAM_PROBE=OFF
+          -DSAORS_BUILD_EXE_PROBE=ON
+          -DSAORS_ENABLE_LIBVLC=OFF
+          -DSAORS_ENABLE_NETWORK_TESTS=OFF
+          -DSAORS_ENABLE_PLUGIN_SDK=ON
+          -DSAORS_FETCH_PLUGIN_SDK=ON
+          -DSAORS_ENABLE_EXPERIMENTAL_GAME_OBSERVER=${{ matrix.observer }}
+          -DSAORS_ENABLE_WARNINGS_AS_ERRORS=ON
+
+      - name: Build
+        run: cmake --build build/${{ matrix.build }} --config Release --parallel
+
+      - name: Run offline tests
+        run: ctest --test-dir build/${{ matrix.build }} -C Release --output-on-failure
+
+      - name: Record safety scope
+        shell: pwsh
+        run: |
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value @"
+          ## Experimental observer CI scope
+
+          - plugin-sdk is fetched at the exact revision pinned by CMake
+          - the job compiles Windows x86 code and runs synthetic offline tests
+          - no game executable is present
+          - no hook is installed and no network or audio playback is started
+          "@
