@@ -24,6 +24,12 @@ struct GameStateSnapshot {
     std::uint64_t sequence{0};
 };
 
+class GameStateSnapshotListener {
+  public:
+    virtual ~GameStateSnapshotListener() = default;
+    virtual void onGameStateSnapshot(const GameStateSnapshot& snapshot) noexcept = 0;
+};
+
 class GameStateSource {
   public:
     virtual ~GameStateSource() = default;
