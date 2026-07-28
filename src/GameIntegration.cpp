@@ -50,6 +50,13 @@ void GameIntegration::configureObserver(const bool enabled, const bool dryRun,
     logStateTransitions_ = logStateTransitions;
 }
 
+void GameIntegration::setSnapshotListener(GameStateSnapshotListener* listener) noexcept {
+    snapshotListener_ = listener;
+    if (observer_) {
+        observer_->setSnapshotListener(listener);
+    }
+}
+
 bool GameIntegration::installHooks() {
     hooksInstalled_ = false;
     observerResult_ = {};
@@ -76,6 +83,7 @@ bool GameIntegration::installHooks() {
     Logger::info("Address profile: gta3_classic_local_candidate");
 
     observer_ = createExperimentalGameObserver(*addressProfile, logStateTransitions_);
+    observer_->setSnapshotListener(snapshotListener_);
     const bool dryRun = observerDryRun_ || !observerEnabled_;
     observerResult_ = observer_->start(dryRun);
     if (observerResult_.status == ObserverInstallStatus::dryRunCompatible) {
@@ -118,25 +126,11 @@ bool GameIntegration::installHooks() {
 
 void GameIntegration::removeHooks() noexcept {
     if (observer_) {
+        observer_->setSnapshotListener(nullptr);
         static_cast<void>(observer_->stop());
     }
+    snapshotListener_ = nullptr;
     hooksInstalled_ = false;
-}
-
-int GameIntegration::currentStation() const noexcept {
-    return -1;
-}
-
-bool GameIntegration::isPlayerInVehicle() const noexcept {
-    return false;
-}
-
-bool GameIntegration::isPauseMenuActive() const noexcept {
-    return false;
-}
-
-float GameIntegration::radioVolume() const noexcept {
-    return 1.0F;
 }
 
 GameStateSnapshot GameIntegration::gameStateSnapshot() const noexcept {

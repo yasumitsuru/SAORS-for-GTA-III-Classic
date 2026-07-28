@@ -202,6 +202,10 @@ class WindowsGameObserver final : public GameObserver {
           source_(profile_, std::make_shared<PluginSdkRuntimeAccess>(memory_)),
           logStateTransitions_(logStateTransitions) {}
 
+    void setSnapshotListener(GameStateSnapshotListener* listener) noexcept override {
+        listener_.store(listener, std::memory_order_release);
+    }
+
     ObserverInstallResult start(const bool dryRun) noexcept override {
         ObserverInstallResult result;
         if (transaction_ && transaction_->installed()) {
@@ -253,6 +257,7 @@ class WindowsGameObserver final : public GameObserver {
     }
 
     bool stop() noexcept override {
+        listener_.store(nullptr, std::memory_order_release);
         auto* expected = this;
         static_cast<void>(
             activeObserver.compare_exchange_strong(expected, nullptr, std::memory_order_acq_rel));
@@ -271,6 +276,14 @@ class WindowsGameObserver final : public GameObserver {
         snapshot.sequence = ++sequence_;
         store_.publish(snapshot);
 
+        auto* listener = listener_.load(std::memory_order_acquire);
+        if (listener != nullptr) {
+            try {
+                listener->onGameStateSnapshot(snapshot);
+            } catch (...) {
+            }
+        }
+
         if (!logStateTransitions_) {
             return;
         }
@@ -288,22 +301,25 @@ class WindowsGameObserver final : public GameObserver {
     std::unique_ptr<PatchTransaction> transaction_;
     GameStateStore store_;
     GameStateTransitionTracker transitionTracker_;
+    std::atomic<GameStateSnapshotListener*> listener_{nullptr};
     std::uint64_t sequence_{0};
     bool logStateTransitions_{false};
 };
 
 void __cdecl gameProcessObserverCallback() noexcept {
-    const auto original = originalGameProcess.load(std::memory_order_acquire);
-    if (original != nullptr) {
-        try {
-            original();
-        } catch (...) {
-        }
-    }
-    auto* observer = activeObserver.load(std::memory_order_acquire);
-    if (observer != nullptr) {
-        observer->captureFrame();
-    }
+    dispatchGameObserverFrame(
+        [] {
+            const auto original = originalGameProcess.load(std::memory_order_acquire);
+            if (original != nullptr) {
+                original();
+            }
+        },
+        [] {
+            auto* observer = activeObserver.load(std::memory_order_acquire);
+            if (observer != nullptr) {
+                observer->captureFrame();
+            }
+        });
 }
 
 } // namespace

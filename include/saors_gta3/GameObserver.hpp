@@ -27,6 +27,7 @@ struct ObserverInstallResult {
 class GameObserver {
   public:
     virtual ~GameObserver() = default;
+    virtual void setSnapshotListener(GameStateSnapshotListener* listener) noexcept = 0;
     [[nodiscard]] virtual ObserverInstallResult start(bool dryRun) noexcept = 0;
     [[nodiscard]] virtual bool stop() noexcept = 0;
     [[nodiscard]] virtual GameStateSnapshot snapshot() const noexcept = 0;
@@ -34,10 +35,23 @@ class GameObserver {
 
 class UnavailableGameObserver final : public GameObserver {
   public:
+    void setSnapshotListener(GameStateSnapshotListener* listener) noexcept override;
     [[nodiscard]] ObserverInstallResult start(bool dryRun) noexcept override;
     [[nodiscard]] bool stop() noexcept override;
     [[nodiscard]] GameStateSnapshot snapshot() const noexcept override;
 };
+
+template <typename OriginalCall, typename CaptureCall>
+void dispatchGameObserverFrame(OriginalCall&& originalCall, CaptureCall&& captureCall) noexcept {
+    try {
+        originalCall();
+    } catch (...) {
+    }
+    try {
+        captureCall();
+    } catch (...) {
+    }
+}
 
 [[nodiscard]] std::unique_ptr<GameObserver>
 createExperimentalGameObserver(const GameAddressProfile& profile, bool logStateTransitions);
