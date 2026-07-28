@@ -134,6 +134,55 @@ verified audible output and perceived volume changes. Those results remain
 useful backend evidence but are superseded by the integrated run for playlist
 state and reconnect behavior.
 
+## Phase 3B read-only observer smoke
+
+On 2026-07-27, the experimental MSVC Release Win32 build used the exact pinned
+plugin-sdk reference and warnings as errors. The executable remained identified
+only as `gta3_classic_local_candidate` at `locally_reproduced`; its edition and
+region were not inferred.
+
+The final local matrix passed with warnings as errors: the default, plugin-sdk
+compile-probe, and experimental-observer MSVC x86 configurations each passed
+`95/95` tests; the Linux host configuration passed `86/86`; and the MinGW i686
+build produced PE32 Intel 80386 ASI, stream-probe, and executable-probe binaries
+without new warnings.
+
+The required dry-run ran first with the observer disabled. The exact fingerprint,
+separate address profile, image ranges, patch definition, and all expected-byte
+windows matched. Hook writes were `false`. The game and save loaded, the original
+radio remained available, the mod started no audio or network activity, and the
+process closed without a residual process.
+
+The subsequent opt-in run installed one five-byte game-process callback. It
+called the original target and published read-only snapshots. Sanitized transition
+evidence covered:
+
+```text
+gameReady: false/unavailable startup -> true after save load
+pause menu: inactive -> active -> inactive
+player: on foot -> in vehicle -> on foot -> in vehicle
+radioStationRaw: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11
+radioVolume: available
+```
+
+The values above are raw observations, not station names. The test did not
+establish which raw value means radio off in every context, so no public station
+enum was added. The audited music-preference integer followed the menu slider's
+`0..127` range and is normalized only as a preference; transition logs
+intentionally record availability rather than its value.
+
+The original in-game radio remained selectable and functional. `Enabled=false`,
+remote playlist resolution disabled, and no station sections ensured no online
+audio path could start. Process inspection observed zero GTA TCP connections
+before and after gameplay interactions. The ASI reported no playlist retrieval,
+stream open, or network start. The game closed normally with no residual process.
+The temporary ASI, INI, and log were removed afterward.
+
+Synthetic tests separately cover first-write, partial-write, post-write,
+verification, and rollback failures because forcing those failures in a real game
+process would be unsafe. Normal game exit reclaims the process-lifetime observer;
+manual ASI unload remains unsupported.
+
 ## Current matrix
 
 | Capability | Result |
@@ -154,5 +203,12 @@ state and reconnect behavior.
 | Wine/Proton | pending |
 | GTA III exact identity detection | locally reproduced; edition and region unverified |
 | GTA III no-hook ASI load and vehicle smoke | passed in one existing third-party loader/mod environment |
+| GTA III observer dry-run | all ranges/expected bytes passed; zero writes |
+| GTA III guarded callback installation | passed on exact local candidate |
+| GTA III game-ready and pause observation | passed |
+| GTA III on-foot/in-vehicle observation | passed |
+| GTA III raw radio observation | values `0..9` and `11`; names and radio-off mapping unverified |
+| GTA III music preference | `0..127` preference readable; effective output not claimed |
+| GTA III observer network/audio isolation | zero SAORS connections and no online audio |
 | GTA III in-game audible validation | not executed by the automation |
-| GTA III hooks | not implemented |
+| GTA III original radio | remained intact during the observer smoke |

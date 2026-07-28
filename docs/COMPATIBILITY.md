@@ -4,13 +4,13 @@
 
 | Target | Build support | Runtime status |
 | --- | --- | --- |
-| Windows x86, MSVC | Configured | Release Win32 no-hook ASI smoke passed on the local candidate |
+| Windows x86, MSVC | Configured | Default, plugin-sdk compile, dry-run, and opt-in read-only observer modes locally passed |
 | Windows x86, MinGW cross-build | Configured | Cross-build only; CI is authoritative |
-| GTA III Classic local candidate | Identity only | Exact, locally reproduced; edition/region and address map unverified |
+| GTA III Classic local candidate | Exact identity plus guarded map | Locally reproduced read-only observer; edition/region remain unverified |
 | GTA III 1.0 US | Research target | Unsupported; no registered fingerprint or address map |
 | GTA III 1.1 | Future | Unsupported |
 | Legacy Steam executable | Future | Unsupported |
-| Patched executables | Future adapters | Unsupported |
+| Patched executables | Future adapters | Unsupported; expected-byte mismatch disables the observer |
 | Proton/Wine | Windows artifact documented | Not validated |
 
 “Configured” means build files exist; it is not proof that every local toolchain or
@@ -45,7 +45,12 @@ Unknown or modified executables must:
 
 The built-in registry contains one exact identity profile,
 `gta3_classic_local_candidate`, at the `locally_reproduced` evidence level. Its
-edition and region are unverified. The associated adapter is deliberately
-unmapped, installs no hooks, and exposes no gameplay state. The reserved GTA III
-1.0 US candidate enum remains a research target rather than a compatibility
-claim.
+edition and region are unverified. A separate address profile is structurally
+compatible with the pinned plugin-sdk `GAME_10EN` map and was reproduced against
+that exact fingerprint. This does not identify the executable as GTA III 1.0 US.
+
+Shared builds and configuration install no callback. The experimental observer
+requires MSVC x86, explicit build and INI opt-ins, exact fingerprinting, the
+minimum evidence level, image-range checks, exact expected-byte windows, and a
+successful transaction. Failure leaves gameplay fields unavailable and preserves
+the original radio. The reserved GTA III 1.0 US candidate enum remains unmapped.

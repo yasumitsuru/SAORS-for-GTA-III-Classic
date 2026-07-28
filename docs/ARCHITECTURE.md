@@ -15,7 +15,13 @@ PeImageReader ---> FileHasher / Windows CNG
        +----> ExecutableFingerprint ---> ExecutableProfileRegistry
                                            |
                                            v
-                                  GameIntegration (hooks disabled)
+                                  GameIntegration
+                                        |
+                                        v
+                         GameAddressProfile + expected bytes
+                                        |
+                                        v
+                      experimental callback --> GameStateSnapshot
 
 INI station URL
        |
@@ -109,10 +115,20 @@ new selection. No body or resolved URL is written to disk.
 
 ### GameIntegration
 
-This is the only component that may eventually know executable profiles,
-addresses, calling conventions, or hooks. Phase 3A gives it an exact profile match
-result, but the default registry is intentionally empty. Every gameplay query
-returns its existing safe placeholder and hook installation returns `false`.
+This is the only component that may select executable-specific runtime access.
+Executable identity, evidence status, address profiles, expected bytes, hook
+state, and current gameplay state remain separate types.
+
+The shared build has no observer implementation. The experimental MSVC x86 build
+can select `GameAddressProfile` only after an exact identity match and a
+`locally_reproduced` or stronger status. Dry-run validates all ranges and byte
+windows without writing. Opt-in installation replaces one audited five-byte call,
+calls the original function, captures read-only state, and rolls back on any
+write or verification failure.
+
+`GameStateSource` has unavailable, fake, and audited runtime implementations.
+Each capture publishes one mutex-protected `GameStateSnapshot`; individual fields
+use `std::optional` so one failed read does not create an ambiguous sentinel.
 
 ### Executable fingerprinting
 
@@ -125,32 +141,35 @@ metadata equality. A structural-only match is diagnostic and unsupported.
 `saors_exe_probe` accepts one explicit path, produces text or JSON, and supports
 path redaction. It never searches disks, loads the image, or copies it.
 
-plugin-sdk is a candidate implementation aid for future verified GTA III adapters.
-It is not required for parsing, configuration, tests, or the current stub ASI, and
-therefore is not fetched yet.
+plugin-sdk is an optional pinned compile and research reference for the Phase 3B
+adapter. It is not required for parsing, configuration, Linux host tests, audio,
+networking, or either probe, and fetching remains disabled by default. It is not
+linked into the ASI.
 
 ### RadioController
 
-The controller maps the known station order to configuration keys such as
-`HeadRadio` and `DoubleClef`. Its update path is dormant because `GameIntegration`
-returns no in-game state. It never mutes the original radio in this milestone.
+The controller maps configured station order to keys such as `HeadRadio` and
+`DoubleClef`. It can consume an explicit snapshot in unit tests, but the ASI does
+not connect observer snapshots to the controller in Phase 3B. It never mutes the
+original radio in this milestone.
 
 ### ASI entry point
 
 `DllMain` disables thread notifications and starts a short initialization worker.
-The worker resolves the host executable path, creates its fingerprint, compares the
-empty-by-default profile registry, and logs only sanitized match state. It then
-reads configuration and constructs the resolver and backend while leaving hooks
-disabled. Fingerprinting performs no HTTP request and starts no playback.
-External-library exceptions are contained so initialization failure cannot escape
-into the host process.
+The worker resolves the host executable path, creates its fingerprint, compares
+the profile registry, and logs only sanitized match state. It reads configuration
+and constructs dormant resolver/backend objects. The shared configuration leaves
+the observer disabled and in dry-run mode. Even an installed observer does not
+call the resolver or backend, perform HTTP, or start playback. Initialization
+exceptions are contained.
 
 ## Threading and lifetime
 
-The initialization worker does not wait inside `DllMain`. Logging opens the file
-for each message and contains all exceptions. No teardown hook runs under the
-loader lock in the current milestone. A future long-lived controller must have an
-explicit stop signal and bounded shutdown before unload.
+The initialization worker does not wait inside `DllMain`. Logging contains all
+exceptions, records transitions only, and stops growing at 1 MiB. No teardown
+hook runs under the loader lock. The observer and logger state intentionally live
+until process exit because safe manual ASI unload has not been proven. The hook
+transaction still exposes idempotent removal for controlled use and tests.
 
 ## Security boundaries
 
@@ -162,6 +181,12 @@ explicit stop signal and bounded shutdown before unload.
   configuration still needs real-stream validation.
 - Executable identity requires exact file, `.text`, and structural matching; the
   fingerprint still does not validate any future offset.
-- Unknown or modified executables receive no gameplay read or memory write.
-- Hook installation must be transactional and support rollback.
+- Unknown, partially matched, or modified executables receive no gameplay read or
+  memory write.
+- Hook installation validates all definitions before writing, verifies the final
+  bytes, restores page protection, and rolls back in reverse order.
+- The observer reads gameplay state only on the game thread and never dereferences
+  the returned vehicle pointer.
+- The callback has no route to WinHTTP, libVLC, `PlaylistResolver`, or
+  `StreamManager`.
 - Logs must not record credentials embedded in stream URLs.

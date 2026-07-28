@@ -4,10 +4,10 @@ An independent, clean-room project that aims to add online radio stations to the
 classic 32-bit Windows release of Grand Theft Auto III.
 
 > [!IMPORTANT]
-> This project is in an early audio-prototype milestone. Configuration, playlist
-> parsing, logging, safe ASI initialization, defensive executable fingerprinting,
-> optional libVLC, standalone probes, tests, and build automation exist. GTA III
-> radio hooks do not.
+> This project is in an experimental integration milestone. Configuration,
+> playlist parsing, logging, defensive executable fingerprinting, optional
+> libVLC, standalone probes, and a guarded read-only game-state observer exist.
+> The observer is disabled by default and never starts online audio.
 
 The final plugin is a Windows x86 DLL named `SAORSForGTA3.asi`. SteamOS support
 means running that same Windows build through Proton/Wine; this is not a native
@@ -22,12 +22,13 @@ Linux game plugin.
 | M3U/M3U8 text playlist parsing | Implemented and unit-tested |
 | PLS parsing | Implemented and unit-tested |
 | File logging | Implemented |
-| ASI initialization | Safe stub; local no-hook game smoke test passed |
+| ASI initialization | Safe by default; dry-run and opt-in observer smoke tests passed |
 | Defensive PE32 x86 fingerprinting | Implemented; parser and Windows CNG SHA-256 tested |
-| Known GTA III executable profiles | One locally reproduced identity profile; edition and region unverified |
+| Known GTA III executable profiles | One locally reproduced identity profile and separate guarded address map; edition and region unverified |
 | Standalone executable probe | Implemented; explicit path, JSON, redaction, no disk search |
 | Unsupported executable handling | Implemented; no exact match means no hooks |
-| GTA III radio hooks | Planned; no verified addresses |
+| GTA III state observer | Experimental MSVC x86 callback; exact fingerprint, expected bytes, dry-run, and rollback required |
+| GTA III radio replacement | Not implemented; original radio remains intact |
 | Optional libVLC backend | Implemented; Windows x86 build, offline lifecycle, localhost, and authorized AAC/HTTP runtime tested |
 | Standalone stream probe | Implemented; real AAC audio, controls, and shutdown manually validated |
 | AAC over HTTP playback | Manually validated with an authorized stream |
@@ -50,10 +51,12 @@ The first research target is:
 The version is a research target, not a current compatibility claim. The registry
 contains one locally reproduced profile named `GTA III Classic local candidate`,
 but the available evidence does not identify its edition or region. An exact
-match identifies those file bytes only: its game adapter is deliberately
-unmapped and hook-disabled in Phase 3A. See
+match identifies those file bytes only. Phase 3B adds a separate address map that
+is selected only after the exact match, evidence-level check, image-range checks,
+and expected-byte validation. See
 [Executable fingerprints](docs/EXECUTABLE_FINGERPRINTS.md) and
-[Compatibility](docs/COMPATIBILITY.md).
+[Compatibility](docs/COMPATIBILITY.md). Structural compatibility with the
+plugin-sdk `GAME_10EN` map is not an edition or region identification.
 
 ## How it is intended to work
 
@@ -61,7 +64,8 @@ unmapped and hook-disabled in Phase 3A. See
 2. Its initialization worker fingerprints the host PE32 x86 executable and
    compares it with an exact profile registry.
 3. The plugin reads `SAORSForGTA3.ini` and writes `SAORSForGTA3.log`.
-4. A future verified game adapter observes vehicle, pause, station, and volume.
+4. An optional guarded adapter observes vehicle, pause, raw station, and music
+   preference through a consistent read-only snapshot.
 5. `RadioController` selects a configured online station.
 6. `PlaylistResolver` downloads and validates a remote playlist, then selects one
    final media URL.
@@ -69,9 +73,9 @@ unmapped and hook-disabled in Phase 3A. See
    the safe `NullAudioBackend` fallback and resolves again on reconnect.
 8. When no safe online replacement is possible, the original radio remains active.
 
-Steps 1, 2, 3, 5, 6, and 7 have initial implementations. Step 4 remains inactive, so
-the backend is currently exercised through `saors_stream_probe`, not through
-gameplay.
+Every step has an initial implementation, but steps 4 and 5 are deliberately not
+connected in gameplay. The observer never reaches the resolver, stream manager,
+or audio backend; audio remains exercised through `saors_stream_probe`.
 
 ## Build
 
@@ -90,6 +94,9 @@ ctest --preset windows-msvc-x86-debug
 Use `windows-msvc-x86-release` for a release build. Detailed instructions are in
 [Building on Windows](docs/BUILDING_WINDOWS.md). libVLC is opt-in and requires the
 official Win32 7z package or an equivalent user-supplied SDK/runtime layout.
+The game observer and pinned plugin-sdk compile probe are separate opt-in research
+modes documented in
+[Read-only game-state observation](docs/GAME_STATE_OBSERVATION.md).
 
 ### SteamOS/Arch cross-build
 
@@ -144,7 +151,8 @@ compatibility claim. See
 
 ## Installation
 
-There is no supported gameplay release yet. For development smoke tests only:
+There is no supported gameplay release yet. For safe development smoke tests
+only, keep the example's observer disabled and dry-run enabled:
 
 1. Back up the game installation.
 2. Install the 32-bit build of
@@ -175,6 +183,11 @@ PlaylistMaximumDepth=3
 VolumeMultiplier=1.0
 LogLevel=info
 
+[Experimental]
+EnableGameObserver=false
+ObserverDryRun=true
+LogStateTransitions=true
+
 [Station.HeadRadio]
 Enabled=true
 Name=Rádio Central DJ
@@ -188,11 +201,13 @@ reports.
 ## Limitations
 
 - libVLC is optional and is not bundled or enabled by default.
-- There are no installed game hooks or memory patches.
+- Shared builds install no game hook. An experimental MSVC x86 build can install
+  one five-byte callback only after explicit INI opt-in and all validation gates.
 - One exact GTA III Classic fingerprint is registered at the
   `locally_reproduced` evidence level; filename-only detection is still rejected.
-- The registered executable's edition and region remain unverified, and its
-  adapter exposes no gameplay addresses.
+- The registered executable's edition and region remain unverified. Its address
+  map is locally reproduced for the exact fingerprint only and must not be
+  generalized to GTA III 1.0 US, 1.1, or Steam.
 - Pause, reconnect, volume API calls, network-failure handling, and cooperative
   shutdown passed with a controlled localhost PCM fixture.
 - AAC over HTTP, audible pause/resume, reconnect, volume, and cooperative
@@ -202,7 +217,12 @@ reports.
 - Simple M3U8 radio lists are resolved; HLS is detected and rejected.
 - The target station permits final HTTP media per station. That audio is not
   protected by TLS even though the configured playlist uses HTTPS.
-- plugin-sdk is not downloaded or linked yet.
+- plugin-sdk is optional, fixed to one reviewed revision, and never linked into
+  the ASI. Fetching is disabled by default.
+- Raw station values have no public name mapping. Normalized volume represents
+  the `0..127` menu preference, not effective audible output.
+- Manual ASI unload is unsupported; the observer stays resident until normal
+  process exit.
 - Proton/Wine installation has documentation but no verified compatibility result.
 
 ## Roadmap
@@ -211,8 +231,9 @@ reports.
   over HTTPS.
 - Independently reproduce the local GTA III Classic candidate and separately
   establish evidence for the GTA III 1.0 US research target.
-- Implement read-only game-state observation behind `GameIntegration`.
-- Add guarded radio suppression/restoration with failure rollback.
+- Connect snapshots to `RadioController` in calculation-only dry-run mode.
+- Independently reproduce the local address map before widening support.
+- Add guarded radio suppression/restoration only in a later authorized phase.
 - Validate Windows 10, Windows 11, Wine, and Proton.
 - Add more executable adapters only after independent verification.
 
@@ -226,8 +247,10 @@ private streams, or unverified memory addresses.
 
 Original project code is available under the [MIT License](LICENSE). Catch2 is
 downloaded only for test builds under the Boost Software License 1.0. Optional
-libVLC binaries and modules retain their own licenses and are not distributed by
-this project. Details are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+libVLC binaries and modules retain their own licenses. The optional pinned
+plugin-sdk reference uses zlib-style terms. Neither dependency is distributed by
+this project. Details are in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Non-affiliation
 
