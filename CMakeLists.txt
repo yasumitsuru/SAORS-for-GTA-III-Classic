@@ -434,6 +434,7 @@ if(SAORS_BUILD_TESTS)
         tests/LibVlcAudioBackendTests.cpp
         tests/PlaylistParserTests.cpp
         tests/PlaylistResolverTests.cpp
+        tests/RadioDecisionTests.cpp
         tests/StreamManagerTests.cpp
         tests/UrlSanitizerTests.cpp
     )
