@@ -64,3 +64,8 @@ Phase 3B evaluated `plugin_III` only at the exact commit recorded in
 symbol is independently gated by the exact local fingerprint, minimum evidence
 level, image bounds, and expected bytes. A failure keeps the observer unavailable
 without trying another game-version map.
+
+Phase 3C does not add or infer any game address or station-name mapping.
+`GameStationRaw` is a user-supplied configuration binding for one observed raw
+value. It is not evidence that the raw value has an official GTA III station name
+or represents radio off. Independent reproduction is deferred to Phase 3D.
