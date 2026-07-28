@@ -22,14 +22,28 @@ PeImageReader ---> FileHasher / Windows CNG
                                         |
                                         v
                       experimental callback --> GameStateSnapshot
+                                                       |
+                                                       v
+                                              snapshot listener
+                                                       |
+                                                       v
+                                           RadioDecisionEngine
+                                                       |
+                                                       v
+                                             RadioActionPlan
+                                                       |
+                                                       v
+                                          DryRunRadioActionSink
+                                                       |
+                                                       v
+                                           SimulatedRadioState
 
 INI station URL
        |
        v
-Configuration
-       |
-       v
-RadioController <---- GameIntegration (verified adapters only)
+Configuration ------------------------------------> decision inputs
+
+standalone probe / future executor only
        |
        v
 StreamManager ----> PlaylistResolver ----> HttpClient ----> WinHTTP
@@ -148,28 +162,34 @@ linked into the ASI.
 
 ### RadioController
 
-The controller maps configured station order to keys such as `HeadRadio` and
-`DoubleClef`. It can consume an explicit snapshot in unit tests, but the ASI does
-not connect observer snapshots to the controller in Phase 3B. It never mutes the
-original radio in this milestone.
+The controller implements `GameStateSnapshotListener` and owns a configuration
+copy plus simulated state. `RadioDecisionEngine` is a pure portable state machine.
+It requires an explicit optional `GameStationRaw` binding and produces a
+sanitized `RadioActionPlan`. No hardcoded GTA station-name map exists.
+
+`DryRunRadioActionSink` applies plans only to its own simulated state and logs
+deduplicated transitions. Neither the controller nor its sink includes or
+references `StreamManager`, a playlist resolver, WinHTTP, libVLC, or a gameplay
+audio API.
 
 ### ASI entry point
 
 `DllMain` disables thread notifications and starts a short initialization worker.
 The worker resolves the host executable path, creates its fingerprint, compares
-the profile registry, and logs only sanitized match state. It reads configuration
-and constructs dormant resolver/backend objects. The shared configuration leaves
-the observer disabled and in dry-run mode. Even an installed observer does not
-call the resolver or backend, perform HTTP, or start playback. Initialization
-exceptions are contained.
+the profile registry, and logs only sanitized match state. The shared
+configuration leaves the observer and controller disabled. When both opt-ins are
+present, process-lifetime controller and sink objects are registered before the
+observer is installed. The ASI does not construct a resolver, stream manager,
+audio backend, or WinHTTP client. Initialization exceptions are contained.
 
 ## Threading and lifetime
 
 The initialization worker does not wait inside `DllMain`. Logging contains all
 exceptions, records transitions only, and stops growing at 1 MiB. No teardown
-hook runs under the loader lock. The observer and logger state intentionally live
-until process exit because safe manual ASI unload has not been proven. The hook
-transaction still exposes idempotent removal for controlled use and tests.
+hook runs under the loader lock. The observer, optional listener/controller,
+dry-run sink, and logger state intentionally live until process exit because safe
+manual ASI unload has not been proven. The hook transaction still exposes
+idempotent removal for controlled use and tests.
 
 ## Security boundaries
 

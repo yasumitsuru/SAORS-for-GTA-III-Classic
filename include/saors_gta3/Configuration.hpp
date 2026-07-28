@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <map>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -39,12 +40,16 @@ struct StationConfiguration {
     std::string name;
     std::string url;
     bool allowHttp{false};
+    std::optional<int> gameStationRaw;
 };
 
 struct ExperimentalConfiguration {
     bool enableGameObserver{false};
     bool observerDryRun{true};
     bool logStateTransitions{true};
+    bool enableRadioController{false};
+    bool radioControllerDryRun{true};
+    bool logRadioDecisions{true};
 };
 
 struct ConfigurationData {

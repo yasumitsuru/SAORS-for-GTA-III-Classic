@@ -4,6 +4,10 @@
 
 namespace saors {
 
+void UnavailableGameObserver::setSnapshotListener(GameStateSnapshotListener* listener) noexcept {
+    static_cast<void>(listener);
+}
+
 ObserverInstallResult UnavailableGameObserver::start(const bool dryRun) noexcept {
     static_cast<void>(dryRun);
     return {};

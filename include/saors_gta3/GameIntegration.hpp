@@ -27,14 +27,10 @@ class GameIntegration {
     [[nodiscard]] ExecutableVersion
     detectExecutableVersion(const ExecutableFingerprint& fingerprint);
     void configureObserver(bool enabled, bool dryRun, bool logStateTransitions) noexcept;
+    void setSnapshotListener(GameStateSnapshotListener* listener) noexcept;
     [[nodiscard]] bool installHooks();
     void removeHooks() noexcept;
 
-    // Legacy RadioController inputs intentionally remain dormant until Phase 3C.
-    [[nodiscard]] int currentStation() const noexcept;
-    [[nodiscard]] bool isPlayerInVehicle() const noexcept;
-    [[nodiscard]] bool isPauseMenuActive() const noexcept;
-    [[nodiscard]] float radioVolume() const noexcept;
     [[nodiscard]] GameStateSnapshot gameStateSnapshot() const noexcept;
     [[nodiscard]] ObserverInstallResult observerInstallResult() const noexcept;
     [[nodiscard]] std::string observerStatusDescription() const;
@@ -53,6 +49,7 @@ class GameIntegration {
     bool observerEnabled_{false};
     bool observerDryRun_{true};
     bool logStateTransitions_{true};
+    GameStateSnapshotListener* snapshotListener_{nullptr};
     bool hooksInstalled_{false};
 };
 

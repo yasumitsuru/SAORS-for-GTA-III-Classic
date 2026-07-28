@@ -66,6 +66,12 @@ Each read is contained separately, so a failed vehicle call does not erase a
 valid pause or volume result. A short mutex publishes and returns a consistent
 copy. No exception can escape `capture()` or the callback.
 
+Phase 3C adds one optional `GameStateSnapshotListener`. After the original game
+function runs, the observer captures and publishes the snapshot, then invokes the
+listener on the game thread. No listener exists by default. It is invalidated
+before controlled observer stop, and the ASI uses process-lifetime listener
+objects because manual unload remains unsupported.
+
 `radioStationRaw` is deliberately not mapped to station names. The local smoke
 observed values `0` through `9` and `11`, including vehicle transitions and radio
 cycling, but did not establish a public name-to-value mapping for every context.
@@ -114,10 +120,10 @@ The opt-in local smoke observed:
 Logs contain transitions only, have a 1 MiB cap, and omit pointers, addresses,
 bytes, fingerprints, personal paths, URLs, and per-frame snapshots.
 
-## Non-goals
+## Phase 3C consumer boundary
 
-This phase does not connect the snapshot to playback decisions. It does not mute
-the original radio, change stations or volume, alter controls or HUD, access
-vehicle internals, resolve playlists during gameplay, or start network/audio
-work. `RadioController` can accept a snapshot for tests, but the ASI does not
-drive it from gameplay in Phase 3B.
+The optional listener can drive a calculation-only `RadioController`. The
+controller produces sanitized `would-*` plans and simulated state; it cannot
+execute them. It does not mute the original radio, change stations or volume,
+alter controls or HUD, access vehicle internals, resolve playlists during
+gameplay, or start network/audio work.

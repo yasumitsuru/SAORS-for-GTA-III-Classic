@@ -1,21 +1,15 @@
-#include "saors_gta3/AudioBackendFactory.hpp"
 #include "saors_gta3/Configuration.hpp"
 #include "saors_gta3/ExecutableFingerprint.hpp"
 #include "saors_gta3/FileHasher.hpp"
 #include "saors_gta3/GameIntegration.hpp"
 #include "saors_gta3/Logger.hpp"
 #include "saors_gta3/PeImageReader.hpp"
-#include "saors_gta3/PlaylistResolver.hpp"
-#include "saors_gta3/StreamManager.hpp"
-
-#if SAORS_HAS_WINHTTP
-#include "saors_gta3/WinHttpClient.hpp"
-#endif
+#include "saors_gta3/RadioActionSink.hpp"
+#include "saors_gta3/RadioController.hpp"
 
 #include <windows.h>
 
 #include <filesystem>
-#include <memory>
 #include <string>
 
 namespace {
@@ -48,9 +42,11 @@ DWORD WINAPI initializePlugin(const LPVOID parameter) {
             pluginPath.empty() ? std::filesystem::current_path() : pluginPath.parent_path();
         const auto configPath = directory / "SAORSForGTA3.ini";
         const auto configuration = saors::Configuration::load(configPath);
+        const auto runtimeConfiguration =
+            configuration.success ? configuration.value : saors::Configuration::defaults();
 
         saors::Logger::initialize(directory / "SAORSForGTA3.log",
-                                  configuration.value.general.logLevel);
+                                  runtimeConfiguration.general.logLevel);
         saors::Logger::info("SAORS for GTA III Classic initialized");
         saors::Logger::info("Plugin version: " SAORS_PLUGIN_VERSION);
 
@@ -96,23 +92,29 @@ DWORD WINAPI initializePlugin(const LPVOID parameter) {
             saors::Logger::warning(warning);
         }
 
-        game->configureObserver(configuration.value.experimental.enableGameObserver,
-                                configuration.value.experimental.observerDryRun,
-                                configuration.value.experimental.logStateTransitions);
+        game->configureObserver(runtimeConfiguration.experimental.enableGameObserver,
+                                runtimeConfiguration.experimental.observerDryRun,
+                                runtimeConfiguration.experimental.logStateTransitions);
 
-        auto backend = saors::createConfiguredAudioBackend();
-#if SAORS_HAS_WINHTTP
-        auto httpClient = std::make_shared<saors::WinHttpClient>();
-        auto resolver = std::make_shared<saors::PlaylistResolver>(httpClient);
-        saors::StreamManager streams(std::move(backend), std::move(resolver));
-        saors::Logger::info("Remote playlist resolver initialized");
+#if SAORS_HAS_RADIO_CONTROLLER_DRY_RUN
+        if (runtimeConfiguration.experimental.enableRadioController) {
+            auto* sink = new saors::DryRunRadioActionSink(
+                runtimeConfiguration.experimental.logRadioDecisions);
+            auto* controller = new saors::RadioController(runtimeConfiguration, *sink);
+            game->setSnapshotListener(controller);
+            saors::Logger::info("Radio controller: dry-run");
+        } else {
+            saors::Logger::info("Radio controller: disabled");
+        }
 #else
-        saors::StreamManager streams(std::move(backend));
-        saors::Logger::warning("Remote playlist resolver is unavailable in this build");
+        if (runtimeConfiguration.experimental.enableRadioController) {
+            saors::Logger::warning("Radio controller: unavailable in this build");
+        } else {
+            saors::Logger::info("Radio controller: disabled");
+        }
 #endif
-        static_cast<void>(streams);
         static_cast<void>(game->installHooks());
-        saors::Logger::info("Observer status: " + game->observerStatusDescription());
+        saors::Logger::info("Game observer: " + game->observerStatusDescription());
         const auto observerResult = game->observerInstallResult();
         saors::Logger::info(std::string("Expected-byte validation: ") +
                             (observerResult.expectedBytesMatched ? "matched" : "not matched"));
@@ -120,8 +122,10 @@ DWORD WINAPI initializePlugin(const LPVOID parameter) {
                             (observerResult.status == saors::ObserverInstallStatus::installed
                                  ? "read-only observer active"
                                  : "disabled"));
+        saors::Logger::info("Gameplay audio executor: unavailable");
         saors::Logger::info("Audio playback: not started");
         saors::Logger::info("Network activity: not started");
+        saors::Logger::info("Original radio: untouched");
     } catch (...) {
         saors::Logger::error("Unhandled exception during plugin initialization");
     }

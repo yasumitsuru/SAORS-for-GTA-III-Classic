@@ -4,9 +4,10 @@
 
 | Target | Build support | Runtime status |
 | --- | --- | --- |
-| Windows x86, MSVC | Configured | Default, plugin-sdk compile, dry-run, and opt-in read-only observer modes locally passed |
-| Windows x86, MinGW cross-build | Configured | Cross-build only; CI is authoritative |
-| GTA III Classic local candidate | Exact identity plus guarded map | Locally reproduced read-only observer; edition/region remain unverified |
+| Windows x86, MSVC | Configured | Default, plugin-sdk compile, observer, and controller dry-run modes locally passed |
+| Windows x86, MinGW cross-build | Configured | Portable decision engine and Windows artifacts compile; CI is authoritative |
+| Linux host | Portable core and tests | Decision engine, configuration, sinks, and listener tests supported without plugin-sdk |
+| GTA III Classic local candidate | Exact identity plus guarded map | Locally reproduced observer and calculation-only controller; edition/region remain unverified |
 | GTA III 1.0 US | Research target | Unsupported; no registered fingerprint or address map |
 | GTA III 1.1 | Future | Unsupported |
 | Legacy Steam executable | Future | Unsupported |
@@ -54,3 +55,9 @@ requires MSVC x86, explicit build and INI opt-ins, exact fingerprinting, the
 minimum evidence level, image-range checks, exact expected-byte windows, and a
 successful transaction. Failure leaves gameplay fields unavailable and preserves
 the original radio. The reserved GTA III 1.0 US candidate enum remains unmapped.
+
+The radio decision engine does not expand executable compatibility. It accepts
+only snapshots supplied by an available observer and requires an explicit
+`GameStationRaw` configuration binding. Unavailable state, missing bindings, and
+invalid configuration produce no start plan and preserve the original radio.
+There is no gameplay audio executor in Phase 3C.

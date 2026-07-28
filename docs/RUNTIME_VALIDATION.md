@@ -183,6 +183,46 @@ verification, and rollback failures because forcing those failures in a real gam
 process would be unsafe. Normal game exit reclaims the process-lifetime observer;
 manual ASI unload remains unsupported.
 
+## Phase 3C radio controller dry-run smoke
+
+On 2026-07-28, the experimental MSVC Release Win32 build connected observer
+snapshots to the calculation-only radio controller. The local INI explicitly
+bound raw value `3` to the sanitized test key `LocalTest`. This value remains
+only a local test binding; no official GTA III station name was inferred.
+
+The save loaded on foot, a vehicle was entered, and the original radio remained
+selectable and functional while raw station values changed. Sanitized controller
+evidence covered:
+
+```text
+would start station key=LocalTest raw=3
+would pause
+would resume
+would set preference-volume=0.18
+would stop reason=station-not-bound
+would stop reason=player-on-foot
+```
+
+Returning to raw `3` after an unbound value produced a fresh `would start`.
+Opening and closing the pause menu produced one plan for each transition rather
+than one per frame. A material slider change produced a normalized
+`preference-volume` within `0.0..1.0`; it did not claim effective mixer or audible
+volume. Repeated transitions were deduplicated and the whole run remained under
+the sink's message limit.
+
+The ASI reported that no gameplay audio executor was available and that audio
+and network activity were not started. No backend, playlist resolver, gameplay
+`StreamManager`, or libVLC process was used. Process inspection found zero
+connections owned by the GTA process and no residual GTA or libVLC process
+after normal exit.
+
+The local log contained 93 lines and 15 decision transitions. It contained no
+URL, hostname, personal path, user name, address, pointer, full executable hash,
+token, credential, or playlist body. Expected-byte validation was represented
+only by a matched status; no expected byte sequence was logged. The raw log was
+not published. The temporary ASI, INI, and log were removed after the sanitized
+summary was collected, and the game directory returned to its prior state.
+
 ## Current matrix
 
 | Capability | Result |
@@ -203,12 +243,13 @@ manual ASI unload remains unsupported.
 | Wine/Proton | pending |
 | GTA III exact identity detection | locally reproduced; edition and region unverified |
 | GTA III no-hook ASI load and vehicle smoke | passed in one existing third-party loader/mod environment |
-| GTA III observer dry-run | all ranges/expected bytes passed; zero writes |
+| GTA III observer dry-run | all ranges and expected-byte checks passed; no byte sequence logged |
 | GTA III guarded callback installation | passed on exact local candidate |
 | GTA III game-ready and pause observation | passed |
 | GTA III on-foot/in-vehicle observation | passed |
 | GTA III raw radio observation | values `0..9` and `11`; names and radio-off mapping unverified |
-| GTA III music preference | `0..127` preference readable; effective output not claimed |
+| GTA III music preference | normalized dry-run change to `0.18` observed; effective output not claimed |
+| GTA III radio controller dry-run | start, pause, resume, volume, unbound-stop, and on-foot-stop passed |
 | GTA III observer network/audio isolation | zero SAORS connections and no online audio |
 | GTA III in-game audible validation | not executed by the automation |
 | GTA III original radio | remained intact during the observer smoke |

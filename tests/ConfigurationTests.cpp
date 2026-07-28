@@ -58,6 +58,9 @@ TEST_CASE("Default configuration is safe and enabled") {
     CHECK_FALSE(configuration.experimental.enableGameObserver);
     CHECK(configuration.experimental.observerDryRun);
     CHECK(configuration.experimental.logStateTransitions);
+    CHECK_FALSE(configuration.experimental.enableRadioController);
+    CHECK(configuration.experimental.radioControllerDryRun);
+    CHECK(configuration.experimental.logRadioDecisions);
     CHECK(configuration.stations.empty());
 }
 
@@ -82,12 +85,16 @@ LogLevel=debug
 EnableGameObserver=true
 ObserverDryRun=false
 LogStateTransitions=false
+EnableRadioController=true
+RadioControllerDryRun=true
+LogRadioDecisions=false
 
 [Station.HeadRadio]
 Enabled=true
 Name=Online Radio
 URL=https://example.com/stream
 AllowHttp=true
+GameStationRaw=0
 )ini"};
 
     const auto result = saors::Configuration::load(file.path());
@@ -110,6 +117,9 @@ AllowHttp=true
     CHECK(result.value.experimental.enableGameObserver);
     CHECK_FALSE(result.value.experimental.observerDryRun);
     CHECK_FALSE(result.value.experimental.logStateTransitions);
+    CHECK(result.value.experimental.enableRadioController);
+    CHECK(result.value.experimental.radioControllerDryRun);
+    CHECK_FALSE(result.value.experimental.logRadioDecisions);
 
     REQUIRE(result.value.stations.count("HeadRadio") == 1);
     const auto& station = result.value.stations.at("HeadRadio");
@@ -117,6 +127,8 @@ AllowHttp=true
     CHECK(station.name == "Online Radio");
     CHECK(station.url == "https://example.com/stream");
     CHECK(station.allowHttp);
+    REQUIRE(station.gameStationRaw);
+    CHECK(*station.gameStationRaw == 0);
 }
 
 TEST_CASE("Boolean configuration accepts common explicit forms") {
@@ -246,4 +258,136 @@ AllowHttp=perhaps
     CHECK(result.value.general.playlistMaximumRedirects == 5);
     CHECK(result.value.general.playlistMaximumDepth == 3);
     CHECK_FALSE(result.value.stations.at("HeadRadio").allowHttp);
+}
+
+TEST_CASE("Raw station bindings accept boundaries and remain optional") {
+    const TemporaryIni file{R"ini(
+[General]
+Enabled=true
+
+[Station.Unbound]
+Enabled=true
+
+[Station.Zero]
+Enabled=false
+GameStationRaw=0
+
+[Station.Maximum]
+Enabled=true
+GameStationRaw=255
+)ini"};
+
+    const auto result = saors::Configuration::load(file.path());
+
+    REQUIRE(result.success);
+    CHECK_FALSE(result.value.stations.at("Unbound").gameStationRaw);
+    REQUIRE(result.value.stations.at("Zero").gameStationRaw);
+    CHECK(*result.value.stations.at("Zero").gameStationRaw == 0);
+    REQUIRE(result.value.stations.at("Maximum").gameStationRaw);
+    CHECK(*result.value.stations.at("Maximum").gameStationRaw == 255);
+}
+
+TEST_CASE("Raw station bindings reject negative overflow and text") {
+    const TemporaryIni file{R"ini(
+[General]
+Enabled=true
+
+[Station.Negative]
+GameStationRaw=-1
+
+[Station.Overflow]
+GameStationRaw=256
+
+[Station.Text]
+GameStationRaw=unknown
+)ini"};
+
+    const auto result = saors::Configuration::load(file.path());
+
+    CHECK_FALSE(result.success);
+    CHECK(result.errors.size() == 3U);
+    CHECK_FALSE(result.value.stations.at("Negative").gameStationRaw);
+    CHECK_FALSE(result.value.stations.at("Overflow").gameStationRaw);
+    CHECK_FALSE(result.value.stations.at("Text").gameStationRaw);
+}
+
+TEST_CASE("Duplicate enabled raw bindings are configuration errors") {
+    const TemporaryIni file{R"ini(
+[General]
+Enabled=true
+
+[Station.First]
+Enabled=true
+GameStationRaw=7
+
+[Station.Second]
+Enabled=true
+GameStationRaw=7
+)ini"};
+
+    const auto result = saors::Configuration::load(file.path());
+
+    CHECK_FALSE(result.success);
+    REQUIRE(result.errors.size() == 1U);
+    CHECK(result.errors.front() == "duplicate enabled GameStationRaw binding for raw 7");
+}
+
+TEST_CASE("Disabled stations do not create duplicate binding errors") {
+    const TemporaryIni file{R"ini(
+[General]
+Enabled=true
+
+[Station.First]
+Enabled=true
+GameStationRaw=7
+
+[Station.Disabled]
+Enabled=false
+GameStationRaw=7
+)ini"};
+
+    const auto result = saors::Configuration::load(file.path());
+
+    CHECK(result.success);
+    CHECK(result.errors.empty());
+}
+
+TEST_CASE("Real radio execution requests are refused and remain dry-run") {
+    const TemporaryIni file{R"ini(
+[General]
+Enabled=true
+
+[Experimental]
+EnableRadioController=true
+RadioControllerDryRun=false
+LogRadioDecisions=true
+)ini"};
+
+    const auto result = saors::Configuration::load(file.path());
+
+    REQUIRE(result.success);
+    CHECK(result.value.experimental.enableRadioController);
+    CHECK(result.value.experimental.radioControllerDryRun);
+    CHECK(result.value.experimental.logRadioDecisions);
+    REQUIRE_FALSE(result.warnings.empty());
+    CHECK(result.warnings.front().find("remains enabled") != std::string::npos);
+}
+
+TEST_CASE("Legacy INI files remain compatible without raw bindings") {
+    const TemporaryIni file{R"ini(
+[General]
+Enabled=true
+
+[Station.Legacy]
+Enabled=true
+Name=Legacy station
+URL=https://example.invalid/stream
+)ini"};
+
+    const auto result = saors::Configuration::load(file.path());
+
+    REQUIRE(result.success);
+    CHECK_FALSE(result.value.stations.at("Legacy").gameStationRaw);
+    CHECK_FALSE(result.value.experimental.enableRadioController);
+    CHECK(result.value.experimental.radioControllerDryRun);
 }

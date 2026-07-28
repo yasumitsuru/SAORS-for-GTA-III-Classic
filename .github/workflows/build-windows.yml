@@ -27,6 +27,7 @@ jobs:
           -DSAORS_ENABLE_PLUGIN_SDK=OFF
           -DSAORS_FETCH_PLUGIN_SDK=OFF
           -DSAORS_ENABLE_EXPERIMENTAL_GAME_OBSERVER=OFF
+          -DSAORS_ENABLE_RADIO_CONTROLLER_DRY_RUN=OFF
           -DSAORS_ENABLE_WARNINGS_AS_ERRORS=ON
 
       - name: Build
@@ -61,9 +62,11 @@ jobs:
           - name: plugin-sdk compile probe
             build: ci-plugin-sdk-x86
             observer: OFF
-          - name: experimental observer compile and tests
+            controller: OFF
+          - name: experimental observer and controller dry-run
             build: ci-observer-x86
             observer: ON
+            controller: ON
 
     steps:
       - name: Check out source
@@ -81,6 +84,7 @@ jobs:
           -DSAORS_ENABLE_PLUGIN_SDK=ON
           -DSAORS_FETCH_PLUGIN_SDK=ON
           -DSAORS_ENABLE_EXPERIMENTAL_GAME_OBSERVER=${{ matrix.observer }}
+          -DSAORS_ENABLE_RADIO_CONTROLLER_DRY_RUN=${{ matrix.controller }}
           -DSAORS_ENABLE_WARNINGS_AS_ERRORS=ON
 
       - name: Build
@@ -93,10 +97,11 @@ jobs:
         shell: pwsh
         run: |
           Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value @"
-          ## Experimental observer CI scope
+          ## Experimental observer and controller CI scope
 
           - plugin-sdk is fetched at the exact revision pinned by CMake
           - the job compiles Windows x86 code and runs synthetic offline tests
           - no game executable is present
           - no hook is installed and no network or audio playback is started
+          - the radio controller has no gameplay audio executor
           "@
