@@ -31,6 +31,11 @@ option(
     "Build the guarded experimental read-only game-state observer"
     OFF
 )
+option(
+    SAORS_ENABLE_RADIO_CONTROLLER_DRY_RUN
+    "Enable snapshot-driven radio decisions without a gameplay audio executor"
+    OFF
+)
 set(SAORS_LIBVLC_ROOT "" CACHE PATH "Root of an externally supplied libVLC SDK/runtime")
 set(SAORS_PLUGIN_SDK_ROOT "" CACHE PATH "Root of an external plugin-sdk checkout")
 set(SAORS_TEST_STREAM_URL "" CACHE STRING "Private URL for opt-in network tests")
@@ -218,7 +223,10 @@ add_library(
         src/MemoryPatch.cpp
         src/PlaylistParser.cpp
         src/PlaylistResolver.cpp
+        src/RadioActionSink.cpp
         src/RadioController.cpp
+        src/RadioDecision.cpp
+        src/RadioDecisionEngine.cpp
         src/StreamManager.cpp
         src/UrlSanitizer.cpp
 )
@@ -288,11 +296,17 @@ if(SAORS_ENABLE_EXPERIMENTAL_GAME_OBSERVER)
     set(SAORS_HAS_EXPERIMENTAL_GAME_OBSERVER 1)
 endif()
 
+set(SAORS_HAS_RADIO_CONTROLLER_DRY_RUN 0)
+if(SAORS_ENABLE_RADIO_CONTROLLER_DRY_RUN)
+    set(SAORS_HAS_RADIO_CONTROLLER_DRY_RUN 1)
+endif()
+
 target_compile_definitions(
     saors_core
     PUBLIC
         SAORS_HAS_EXECUTABLE_FINGERPRINTING=${SAORS_HAS_EXECUTABLE_FINGERPRINTING}
         SAORS_HAS_EXPERIMENTAL_GAME_OBSERVER=${SAORS_HAS_EXPERIMENTAL_GAME_OBSERVER}
+        SAORS_HAS_RADIO_CONTROLLER_DRY_RUN=${SAORS_HAS_RADIO_CONTROLLER_DRY_RUN}
         SAORS_HAS_LIBVLC=${SAORS_HAS_LIBVLC}
         SAORS_HAS_WINHTTP=${SAORS_HAS_WINHTTP}
 )

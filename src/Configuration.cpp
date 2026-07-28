@@ -228,6 +228,13 @@ void assignStationValue(ConfigurationResult& result, const std::string& stationK
         } else {
             addInvalidValueError(result, lineNumber, key, "a boolean");
         }
+    } else if (normalizedKey == "gamestationraw") {
+        const auto parsed = parseUnsigned(value);
+        if (parsed.has_value() && *parsed <= 255U) {
+            station.gameStationRaw = static_cast<int>(*parsed);
+        } else {
+            addInvalidValueError(result, lineNumber, key, "an integer from 0 through 255");
+        }
     } else {
         result.warnings.push_back("line " + std::to_string(lineNumber) + ": unknown station key '" +
                                   key + "'");
@@ -250,9 +257,34 @@ void assignExperimentalValue(ConfigurationResult& result, const std::string& key
         experimental.observerDryRun = *parsed;
     } else if (normalizedKey == "logstatetransitions") {
         experimental.logStateTransitions = *parsed;
+    } else if (normalizedKey == "enableradiocontroller") {
+        experimental.enableRadioController = *parsed;
+    } else if (normalizedKey == "radiocontrollerdryrun") {
+        if (!*parsed) {
+            result.warnings.emplace_back(
+                "RadioControllerDryRun=false is unavailable in Phase 3C; dry-run remains enabled");
+        }
+        experimental.radioControllerDryRun = true;
+    } else if (normalizedKey == "logradiodecisions") {
+        experimental.logRadioDecisions = *parsed;
     } else {
         result.warnings.push_back("line " + std::to_string(lineNumber) +
                                   ": unknown Experimental key '" + key + "'");
+    }
+}
+
+void validateStationBindings(ConfigurationResult& result) {
+    std::map<int, std::size_t> enabledBindings;
+    for (const auto& entry : result.value.stations) {
+        const auto& station = entry.second;
+        if (!station.enabled || !station.gameStationRaw) {
+            continue;
+        }
+        const auto count = ++enabledBindings[*station.gameStationRaw];
+        if (count == 2U) {
+            result.errors.push_back("duplicate enabled GameStationRaw binding for raw " +
+                                    std::to_string(*station.gameStationRaw));
+        }
     }
 }
 
@@ -268,7 +300,7 @@ ConfigurationResult Configuration::load(const std::filesystem::path& path) {
 
     std::ifstream input(path);
     if (!input) {
-        result.errors.push_back("configuration file not found: " + path.string());
+        result.errors.emplace_back("configuration file not found");
         return result;
     }
 
@@ -332,6 +364,7 @@ ConfigurationResult Configuration::load(const std::filesystem::path& path) {
         result.warnings.emplace_back("no [Station.*] sections were configured");
     }
 
+    validateStationBindings(result);
     result.success = result.errors.empty();
     return result;
 }
