@@ -7,6 +7,7 @@
 #include "saors_gta3/RadioActionSink.hpp"
 #include "saors_gta3/RadioController.hpp"
 #include "saors_gta3/RadioStationObservationRecorder.hpp"
+#include "saors_gta3/RadioStationResolver.hpp"
 
 #include <windows.h>
 
@@ -154,7 +155,9 @@ DWORD WINAPI initializePlugin(const LPVOID parameter) {
         if (runtimeConfiguration.experimental.enableRadioController) {
             auto* sink = new saors::DryRunRadioActionSink(
                 runtimeConfiguration.experimental.logRadioDecisions);
-            auto* controller = new saors::RadioController(runtimeConfiguration, *sink);
+            auto* controller = new saors::RadioController(
+                runtimeConfiguration, game->detectedExecutableProfile(),
+                saors::defaultRadioStationResolver(), *sink);
             listener->setController(controller);
             game->setSnapshotListener(listener);
             saors::Logger::info("Radio controller: dry-run");

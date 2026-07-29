@@ -1,5 +1,7 @@
 #pragma once
 
+#include "saors_gta3/RadioStationEvidence.hpp"
+
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -16,6 +18,12 @@ enum class RadioActionKind {
     wouldStop,
 };
 
+enum class RadioStationBindingKind {
+    none,
+    raw,
+    identity,
+};
+
 enum class RadioDecisionReason {
     unchanged,
     projectDisabled,
@@ -26,6 +34,10 @@ enum class RadioDecisionReason {
     vehicleStateUnavailable,
     playerOnFoot,
     stationUnavailable,
+    stationRawInvalid,
+    stationProfileUnsupported,
+    stationIdentityUnknown,
+    stationIdentityNotBound,
     stationNotBound,
     stationDisabled,
     stationUrlEmpty,
@@ -38,8 +50,10 @@ enum class RadioDecisionReason {
 struct RadioActionPlan {
     RadioActionKind action{RadioActionKind::none};
     RadioDecisionReason reason{RadioDecisionReason::unchanged};
+    RadioStationBindingKind bindingKind{RadioStationBindingKind::none};
     std::uint64_t snapshotSequence{0};
     std::optional<int> rawStation;
+    std::optional<RadioStationIdentity> stationIdentity;
     std::optional<std::string> stationKey;
     std::optional<float> preferenceVolume;
     bool onlineAudioWouldBeActive{false};
@@ -48,13 +62,16 @@ struct RadioActionPlan {
 struct SimulatedRadioState {
     bool active{false};
     bool paused{false};
+    RadioStationBindingKind bindingKind{RadioStationBindingKind::none};
     std::optional<int> rawStation;
+    std::optional<RadioStationIdentity> stationIdentity;
     std::optional<std::string> stationKey;
     std::optional<float> preferenceVolume;
     std::uint64_t lastSnapshotSequence{0};
 };
 
 [[nodiscard]] const char* radioActionKindName(RadioActionKind action) noexcept;
+[[nodiscard]] const char* radioStationBindingKindName(RadioStationBindingKind bindingKind) noexcept;
 [[nodiscard]] const char* radioDecisionReasonName(RadioDecisionReason reason) noexcept;
 [[nodiscard]] bool isPublicStationKeySafe(const std::string& stationKey) noexcept;
 [[nodiscard]] std::string sanitizedStationKey(const std::string& stationKey,

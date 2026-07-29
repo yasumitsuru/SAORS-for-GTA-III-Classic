@@ -76,6 +76,9 @@ plugin-sdk `GAME_10EN` map is not an edition or region identification.
    it never names stations or starts network/audio work.
 8. `saors_radio_map_tool` validates and compares sanitized local evidence. The
    reviewed registry and pure `RadioStationResolver` can resolve only exact-profile
+   Phase 3F consumes that resolver only in the dry-run decision path: explicit raw
+   bindings win, otherwise an exact-profile resolved identity may select an explicit
+   identity binding. No resolver result can start real audio or networking.
    raw values; neither has a gameplay consumer.
 9. `PlaylistResolver`, `StreamManager`, and audio backends remain isolated from
    gameplay and are exercised through `saors_stream_probe`.
@@ -202,6 +205,8 @@ Name=Rádio Central DJ
 URL=https://www.centraldj.com.br/radios/centraldj/stream.m3u
 AllowHttp=true
 ; GameStationRaw must be set only after local validation.
+; Or bind an exact resolver identity instead. Do not set both keys.
+; GameStationIdentity=riseFm
 ```
 
 Do not put credentials or private tokens in a configuration file shared with bug
@@ -226,10 +231,15 @@ without GTA III, plugin-sdk, libVLC, WinHTTP, network, or audio.
 Phase 3E adds `RadioStationResolver`, a pure C++17 lookup from an exact
 executable profile and raw value to `resolved`, `unknownRaw`,
 `unsupportedProfile`, or `invalidRaw`. It resolves only the reviewed raws `0..9`
-and `11` for `gta3_classic_local_candidate`; raw `10` remains unknown. The
-resolver does not read configuration, start gameplay audio or networking, or
-connect to `RadioDecisionEngine` or `RadioController`; `GameStationRaw` remains
-the manual binding until a later reviewed dry-run phase.
+and `11` for `gta3_classic_local_candidate`; raw `10` remains unknown.
+
+Phase 3F consumes the resolver only in the calculation-only controller. A station
+may use `GameStationRaw` or `GameStationIdentity`, never both.
+`GameStationRaw > GameStationIdentity`: an exact raw binding is authoritative even
+when disabled. Only without a raw binding does the controller consult the explicit
+profile and resolver; only `resolved` identities can locate an identity binding.
+There is no profile fallback, raw `10` cannot select `policeRadio` or `radioOff`,
+and no audio, network, playlist, game-memory, or original-radio operation occurs.
 
 ## Limitations
 

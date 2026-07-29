@@ -164,7 +164,7 @@ linked into the ASI.
 
 The controller implements `GameStateSnapshotListener` and owns a configuration
 copy plus simulated state. `RadioDecisionEngine` is a pure portable state machine.
-It requires an explicit optional `GameStationRaw` binding and produces a
+It accepts an explicit raw binding or exact-profile resolved identity binding and produces a
 sanitized `RadioActionPlan`. No hardcoded GTA station-name map exists.
 
 `DryRunRadioActionSink` applies plans only to its own simulated state and logs
@@ -179,7 +179,7 @@ The worker resolves the host executable path, creates its fingerprint, compares
 the profile registry, and logs only sanitized match state. The shared
 configuration leaves the observer and controller disabled. When both opt-ins are
 present, process-lifetime controller and sink objects are registered before the
-observer is installed. The ASI does not construct a resolver, stream manager,
+observer is installed. The ASI may construct the pure resolver for dry-run decisions, but does not construct a stream manager,
 audio backend, or WinHTTP client. Initialization exceptions are contained.
 
 ## Threading and lifetime
@@ -213,4 +213,4 @@ idempotent removal for controlled use and tests.
 
 ### Radio station research
 
-Phase 3D keeps RadioStationObservationRecorder and the versioned evidence model on a side path from RadioDecisionEngine. The reviewed map registry is scoped to its exact profile and is never used to infer an INI binding. Phase 3E adds a pure resolver with no gameplay consumer.
+Phase 3D keeps RadioStationObservationRecorder and the versioned evidence model on a side path from RadioDecisionEngine. The reviewed map registry is scoped to its exact profile and is never used during INI parsing. Phase 3F passes an explicit profile and pure resolver only to the calculation-only dry-run controller: `GameStationRaw > GameStationIdentity`, no profile fallback, and raw 10 remains unknown. No audio, network, playlist, game-write, or original-radio operation is added.

@@ -449,3 +449,144 @@ RadioStationMinimumStableFrames=601
     REQUIRE(result.errors.size() == 1U);
     CHECK(result.value.research.radioStationMinimumStableFrames == 15U);
 }
+
+TEST_CASE("Identity station binding parses normalized values and surrounding spaces") {
+    const TemporaryIni file{R"ini(
+[General]
+Enabled=true
+
+[Station.Rise]
+Enabled=true
+GameStationIdentity=   riseFm
+)ini"};
+
+    const auto result = saors::Configuration::load(file.path());
+
+    REQUIRE(result.success);
+    const auto& station = result.value.stations.at("Rise");
+    REQUIRE(station.gameStationIdentity);
+    CHECK(*station.gameStationIdentity == saors::RadioStationIdentity::riseFm);
+    CHECK_FALSE(station.gameStationRaw);
+}
+
+TEST_CASE("Identity station bindings reject invalid and unknown values") {
+    const TemporaryIni file{R"ini(
+[General]
+Enabled=true
+
+[Station.Invalid]
+GameStationIdentity=notAStation
+
+[Station.Unknown]
+GameStationIdentity=unknown
+)ini"};
+
+    const auto result = saors::Configuration::load(file.path());
+
+    CHECK_FALSE(result.success);
+    CHECK(result.errors.size() == 2U);
+    CHECK_FALSE(result.value.stations.at("Invalid").gameStationIdentity);
+    CHECK_FALSE(result.value.stations.at("Unknown").gameStationIdentity);
+}
+
+TEST_CASE("Enabled identity station bindings must be unique") {
+    const TemporaryIni file{R"ini(
+[General]
+Enabled=true
+
+[Station.First]
+Enabled=true
+GameStationIdentity=riseFm
+
+[Station.Second]
+Enabled=true
+GameStationIdentity=riseFm
+)ini"};
+
+    const auto result = saors::Configuration::load(file.path());
+
+    CHECK_FALSE(result.success);
+    REQUIRE(result.errors.size() == 1U);
+    CHECK(result.errors.front() ==
+          "duplicate enabled GameStationIdentity binding for identity riseFm");
+}
+
+TEST_CASE("Disabled identity station bindings may duplicate enabled bindings") {
+    const TemporaryIni file{R"ini(
+[General]
+Enabled=true
+
+[Station.First]
+Enabled=true
+GameStationIdentity=riseFm
+
+[Station.Disabled]
+Enabled=false
+GameStationIdentity=riseFm
+)ini"};
+
+    const auto result = saors::Configuration::load(file.path());
+
+    CHECK(result.success);
+    CHECK(result.errors.empty());
+}
+
+TEST_CASE("Raw and identity bindings are mutually exclusive per station") {
+    const TemporaryIni file{R"ini(
+[General]
+Enabled=true
+
+[Station.Invalid]
+Enabled=false
+GameStationRaw=3
+GameStationIdentity=riseFm
+)ini"};
+
+    const auto result = saors::Configuration::load(file.path());
+
+    CHECK_FALSE(result.success);
+    REQUIRE(result.errors.size() == 1U);
+    CHECK(result.errors.front() ==
+          "station 'Invalid' cannot set both GameStationRaw and GameStationIdentity");
+}
+
+TEST_CASE("Raw only and unbound station configurations remain compatible") {
+    const TemporaryIni file{R"ini(
+[General]
+Enabled=true
+
+[Station.RawOnly]
+Enabled=true
+GameStationRaw=3
+
+[Station.Unbound]
+Enabled=true
+)ini"};
+
+    const auto result = saors::Configuration::load(file.path());
+
+    REQUIRE(result.success);
+    CHECK(result.value.stations.at("RawOnly").gameStationRaw == 3);
+    CHECK_FALSE(result.value.stations.at("RawOnly").gameStationIdentity);
+    CHECK_FALSE(result.value.stations.at("Unbound").gameStationRaw);
+    CHECK_FALSE(result.value.stations.at("Unbound").gameStationIdentity);
+}
+
+TEST_CASE("Police radio identity parsing does not create a raw ten binding") {
+    const TemporaryIni file{R"ini(
+[General]
+Enabled=true
+
+[Station.Police]
+Enabled=true
+GameStationIdentity=policeRadio
+)ini"};
+
+    const auto result = saors::Configuration::load(file.path());
+
+    REQUIRE(result.success);
+    const auto& station = result.value.stations.at("Police");
+    REQUIRE(station.gameStationIdentity);
+    CHECK(*station.gameStationIdentity == saors::RadioStationIdentity::policeRadio);
+    CHECK_FALSE(station.gameStationRaw);
+}

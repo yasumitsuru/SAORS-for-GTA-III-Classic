@@ -19,7 +19,9 @@ bool sameOptionalFloat(const std::optional<float>& left,
 void clearSimulatedActivity(SimulatedRadioState& state) {
     state.active = false;
     state.paused = false;
+    state.bindingKind = RadioStationBindingKind::none;
     state.rawStation.reset();
+    state.stationIdentity.reset();
     state.stationKey.reset();
     state.preferenceVolume.reset();
 }
@@ -34,6 +36,10 @@ bool isBlockingReason(const RadioDecisionReason reason) noexcept {
     case RadioDecisionReason::vehicleStateUnavailable:
     case RadioDecisionReason::playerOnFoot:
     case RadioDecisionReason::stationUnavailable:
+    case RadioDecisionReason::stationRawInvalid:
+    case RadioDecisionReason::stationProfileUnsupported:
+    case RadioDecisionReason::stationIdentityUnknown:
+    case RadioDecisionReason::stationIdentityNotBound:
     case RadioDecisionReason::stationNotBound:
     case RadioDecisionReason::stationDisabled:
     case RadioDecisionReason::stationUrlEmpty:
@@ -70,6 +76,18 @@ const char* radioActionKindName(const RadioActionKind action) noexcept {
     return "none";
 }
 
+const char* radioStationBindingKindName(const RadioStationBindingKind bindingKind) noexcept {
+    switch (bindingKind) {
+    case RadioStationBindingKind::none:
+        return "none";
+    case RadioStationBindingKind::raw:
+        return "raw";
+    case RadioStationBindingKind::identity:
+        return "identity";
+    }
+    return "none";
+}
+
 const char* radioDecisionReasonName(const RadioDecisionReason reason) noexcept {
     switch (reason) {
     case RadioDecisionReason::unchanged:
@@ -90,6 +108,14 @@ const char* radioDecisionReasonName(const RadioDecisionReason reason) noexcept {
         return "player-on-foot";
     case RadioDecisionReason::stationUnavailable:
         return "station-unavailable";
+    case RadioDecisionReason::stationRawInvalid:
+        return "station-raw-invalid";
+    case RadioDecisionReason::stationProfileUnsupported:
+        return "station-profile-unsupported";
+    case RadioDecisionReason::stationIdentityUnknown:
+        return "station-identity-unknown";
+    case RadioDecisionReason::stationIdentityNotBound:
+        return "station-identity-not-bound";
     case RadioDecisionReason::stationNotBound:
         return "station-not-bound";
     case RadioDecisionReason::stationDisabled:
@@ -127,7 +153,8 @@ std::string sanitizedStationKey(const std::string& stationKey,
 
 bool sameRadioActionTransition(const RadioActionPlan& left, const RadioActionPlan& right) noexcept {
     return left.action == right.action && left.reason == right.reason &&
-           left.rawStation == right.rawStation && left.stationKey == right.stationKey &&
+           left.bindingKind == right.bindingKind && left.rawStation == right.rawStation &&
+           left.stationIdentity == right.stationIdentity && left.stationKey == right.stationKey &&
            sameOptionalFloat(left.preferenceVolume, right.preferenceVolume) &&
            left.onlineAudioWouldBeActive == right.onlineAudioWouldBeActive;
 }
@@ -145,7 +172,9 @@ void applyRadioActionPlan(const RadioActionPlan& plan, SimulatedRadioState& stat
         case RadioActionKind::wouldSwitch:
             state.active = true;
             state.paused = false;
+            state.bindingKind = plan.bindingKind;
             state.rawStation = plan.rawStation;
+            state.stationIdentity = plan.stationIdentity;
             state.stationKey = plan.stationKey;
             state.preferenceVolume = plan.preferenceVolume;
             break;
