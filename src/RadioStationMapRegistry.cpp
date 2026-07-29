@@ -24,7 +24,34 @@ RadioStationMapRegistry::profiles() const noexcept {
 }
 
 const RadioStationMapRegistry& defaultRadioStationMapRegistry() {
-    static const RadioStationMapRegistry registry;
+    static const RadioStationMapRegistry registry({
+        {ExecutableProfileId::gta3_classic_local_candidate,
+         {
+             {0, RadioStationIdentity::headRadio,
+              RadioStationEvidenceLevel::locallyReproduced, 2U, 1U},
+             {1, RadioStationIdentity::doubleClefFm,
+              RadioStationEvidenceLevel::locallyReproduced, 2U, 1U},
+             {2, RadioStationIdentity::jahRadio,
+              RadioStationEvidenceLevel::locallyReproduced, 2U, 1U},
+             {3, RadioStationIdentity::riseFm,
+              RadioStationEvidenceLevel::locallyReproduced, 2U, 1U},
+             {4, RadioStationIdentity::lips106,
+              RadioStationEvidenceLevel::locallyReproduced, 2U, 1U},
+             {5, RadioStationIdentity::gameFm,
+              RadioStationEvidenceLevel::locallyReproduced, 2U, 1U},
+             {6, RadioStationIdentity::msxFm,
+              RadioStationEvidenceLevel::locallyReproduced, 2U, 1U},
+             {7, RadioStationIdentity::flashback956,
+              RadioStationEvidenceLevel::locallyReproduced, 2U, 1U},
+             {8, RadioStationIdentity::chatterbox109,
+              RadioStationEvidenceLevel::locallyReproduced, 2U, 1U},
+             {9, RadioStationIdentity::mp3Player,
+              RadioStationEvidenceLevel::locallyReproduced, 2U, 1U},
+             {11, RadioStationIdentity::radioOff,
+              RadioStationEvidenceLevel::locallyReproduced, 2U, 1U},
+         },
+         "phase3d-two-local-manual-sessions-conflict-free"},
+    });
     return registry;
 }
 

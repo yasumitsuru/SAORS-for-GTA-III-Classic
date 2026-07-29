@@ -17,3 +17,13 @@ An entry is omitted or remains unknown when labels conflict, identities conflict
 The validator rejects unknown schemas, unsupported profiles, empty sessions, duplicate ordinals, raw values outside 0..255, empty labels, non-vehicle observations, and raw/label many-to-many conflicts. The JSON parser also rejects sensitive field names. Session comparison reports profile and raw/identity conflicts without filling missing observations.
 
 The plugin-sdk eRadioStations.h enumeration is corroborative documentation only. Its upstream MP3_PLAEYR spelling is normalized internally to mp3Player, while its provenance remains documented as a hypothesis.
+
+## Current reviewed result
+
+Two separate local manual sessions for the exact `gta3_classic_local_candidate`
+profile produced equivalent, conflict-free reports. Their matching relationships
+for raws `0..9` and `11` are represented in the reviewed registry as
+`locallyReproduced`. Raw 10 was unobserved and remains unknown and unverified.
+This is not independent reproduction, an edition or region identification, or a
+gameplay binding. The local reports and their manually transcribed labels remain
+private under ignored `research/local/` paths.

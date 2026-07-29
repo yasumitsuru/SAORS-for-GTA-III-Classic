@@ -24,4 +24,20 @@ Run two complete, separate local sessions with the same exact profile. In each s
 
 ## Portable tool
 
-saors_radio_map_tool needs no GTA III, plugin-sdk, libVLC, WinHTTP, network, or real executable. It supports --validate, --compare, --summarize, --redact, and --help. The registry is deliberately empty in this phase. It never populates GameStationRaw, changes RadioDecisionEngine, or provides a fallback map for an unknown executable. The SDK list and the missing raw 10 remain research notes, not runtime truth.
+`saors_radio_map_tool` needs no GTA III, plugin-sdk, libVLC, WinHTTP, network, or real executable. It supports `--validate`, `--compare`, `--summarize`, `--redact`, and `--help`.
+
+## Reviewed local map
+
+Two manually operated sessions in separate processes, using the same exact
+`gta3_classic_local_candidate` profile and conflict-free reports, reproduced the
+relationships for raws `0..9` and `11`. The built-in registry contains only those
+eleven normalized identities with `locallyReproduced` evidence, scoped only to
+that exact profile. The second session used a different vehicle. Raw 10 was not
+observed and remains unknown, unverified, and absent from the registry.
+
+The registry is diagnosis-only: it never populates `GameStationRaw`, changes
+`RadioDecisionEngine`, creates a controller binding, reads local reports, or
+provides a fallback map for another executable profile. Raw report files remain
+ignored and no visible-label annotation, executable path, log, hash, or other
+local evidence is published. The SDK list remains corroborative documentation,
+not runtime truth. Independent reproduction remains pending.

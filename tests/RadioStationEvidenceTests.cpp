@@ -3,7 +3,9 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -76,14 +78,55 @@ TEST_CASE("Evidence JSON round trips and rejects forbidden sensitive fields") {
     CHECK_FALSE(rejected.success);
 }
 
-TEST_CASE("Registry has no default inferred station map") {
-    CHECK(saors::defaultRadioStationMapRegistry().find(saors::ExecutableProfileId::gta3_classic_local_candidate) == nullptr);
+TEST_CASE("Default registry exposes only the locally reproduced exact-profile map") {
+    const auto& registry = saors::defaultRadioStationMapRegistry();
+    const auto* profile = registry.find(saors::ExecutableProfileId::gta3_classic_local_candidate);
+    REQUIRE(profile != nullptr);
+    REQUIRE(profile->entries.size() == 11U);
+    CHECK(profile->evidenceRevision == "phase3d-two-local-manual-sessions-conflict-free");
+
+    const std::vector<std::pair<int, saors::RadioStationIdentity>> expected{
+        {0, saors::RadioStationIdentity::headRadio},
+        {1, saors::RadioStationIdentity::doubleClefFm},
+        {2, saors::RadioStationIdentity::jahRadio},
+        {3, saors::RadioStationIdentity::riseFm},
+        {4, saors::RadioStationIdentity::lips106},
+        {5, saors::RadioStationIdentity::gameFm},
+        {6, saors::RadioStationIdentity::msxFm},
+        {7, saors::RadioStationIdentity::flashback956},
+        {8, saors::RadioStationIdentity::chatterbox109},
+        {9, saors::RadioStationIdentity::mp3Player},
+        {11, saors::RadioStationIdentity::radioOff},
+    };
+    REQUIRE(profile->entries.size() == expected.size());
+    for (std::size_t index = 0; index < expected.size(); ++index) {
+        const auto& entry = profile->entries[index];
+        CHECK(entry.rawValue == expected[index].first);
+        CHECK(entry.identity == expected[index].second);
+        CHECK(entry.evidence == saors::RadioStationEvidenceLevel::locallyReproduced);
+        CHECK(entry.localSessionCount == 2U);
+        CHECK(entry.independentSourceCount == 1U);
+    }
+
     saors::RadioStationMapProfile invalid;
     invalid.executableProfile = saors::ExecutableProfileId::gta3_classic_local_candidate;
     invalid.evidenceRevision = "test";
     invalid.entries.push_back({10, saors::RadioStationIdentity::unknown,
                                saors::RadioStationEvidenceLevel::unverified, 0U, 0U});
     CHECK_FALSE(saors::isRadioStationMapProfileValid(invalid));
+}
+
+TEST_CASE("Registry lookup stays exact and excludes the raw 10 hypothesis") {
+    const auto& registry = saors::defaultRadioStationMapRegistry();
+    REQUIRE(registry.profiles().size() == 1U);
+    CHECK(registry.find(saors::ExecutableProfileId::gta3_10_us_candidate) == nullptr);
+    CHECK(registry.find(saors::ExecutableProfileId::unsupported) == nullptr);
+
+    const auto* profile = registry.find(saors::ExecutableProfileId::gta3_classic_local_candidate);
+    REQUIRE(profile != nullptr);
+    CHECK_FALSE(std::any_of(profile->entries.begin(), profile->entries.end(), [](const auto& entry) {
+        return entry.rawValue == 10 || entry.identity == saors::RadioStationIdentity::policeRadio;
+    }));
 }
 
 TEST_CASE("Evidence validation rejects identity conflicts, unsafe labels, and personal fields") {

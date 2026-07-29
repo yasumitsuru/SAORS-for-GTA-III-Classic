@@ -14,13 +14,12 @@ Publication: branch pushed to origin/research/radio-station-map; initial PR CI p
 
 - Recorder: implemented, pure, bounded, stable-frame filtered, disabled by default.
 - Evidence schema: implemented as version 1 with privacy validation.
-- Portable validator: implemented as saors_radio_map_tool.
-- Registry: implemented separately and empty by default; no controller consumption.
-- Configuration: [Research] is opt-in and does not enable audio or network activity.
-- Raw values observed by prior research: 0..9 and 11.
-- Raw 10: not observed; identity remains unknown and no value is forced.
-- HUD labels: no new local gameplay sessions were performed in this environment.
-- Local reproduction: pending two complete sessions and sanitized report review; no GTA III session was run in this environment.
+- Portable validator: implemented as `saors_radio_map_tool`.
+- Registry: contains eleven reviewed `locallyReproduced` relationships only for `gta3_classic_local_candidate`; no controller consumption.
+- Configuration: `[Research]` is opt-in and does not enable audio or network activity.
+- Local validation: two manual sessions completed in separate processes against the same exact executable profile; the second used a different vehicle.
+- Station map evidence: raws `0..9` and `11` matched normalized identities and conflict-free visible-label annotations in both sessions.
+- Raw 10: unobserved, unknown, and unverified; it is absent from the registry.
 - Independent reproduction: pending; no second source is claimed.
 
 ## Safety and non-regression
@@ -29,22 +28,22 @@ The controller remains calculation-only and explicitly bound by GameStationRaw. 
 
 ## Validation status
 
-- Linux/portable host equivalent: `build/phase3d-make-host-final` compiled with Clang 22 and warnings as errors; CMake target build passed.
-- Host test suite: `ctest --test-dir build/phase3d-make-tests --output-on-failure` passed 129/129 tests.
+- Linux/portable host equivalent: `build/phase3d-make-host-final` compiled with Clang 22 and warnings as errors; CMake target build passed before local-map promotion.
+- Host test suite: `ctest --test-dir build/phase3d-make-tests --output-on-failure` passed 129/129 tests before local-map promotion.
 - Portable tool smoke test: validate, summarize, and redact passed with a synthetic raw-3 and unknown raw-10 document.
-- MSVC x86: CI passed build, plugin-sdk compile probe, and experimental observer/controller dry-run; local execution was not available in this environment.
-- MinGW i686: CI cross-build passed; native Linux host tests passed; no local i686 MinGW compiler was available.
-- Gameplay smoke test: not run; no GTA III executable or session was used.
-- Synthetic unit tests cover recorder, evidence conflicts, JSON privacy, parser truncation/ranges, research configuration, and registry non-inference.
+- MSVC x86: clean Release x86 promotion build passed 130/130 tests with warnings as errors; fresh CI is pending.
+- MinGW i686: prior CI cross-build passed; the promotion CI is pending.
+- Gameplay validation: two controlled manual sessions completed with the observer and recorder only; no gameplay audio, network, playlist, or controller execution was enabled.
+- Synthetic unit tests cover recorder, evidence conflicts, JSON privacy, parser truncation/ranges, research configuration, and exact-profile registry behavior.
 
 ## Evidence status
 
-- Raw values from prior research: 0..9 and 11.
+- Executable verification: `locally_reproduced` remains an exact-profile property and is not an edition or region claim.
+- Station map: raws `0..9` and `11` are `locallyReproduced` from two separate, conflict-free local sessions.
 - Raw 10: not observed; remains unknown and unverified.
-- HUD-confirmed labels in this PR: none; no local GTA III sessions were performed.
-- Local reproduction: not claimed; two complete sessions remain required.
-- Independent reproduction: pending; no second legal installation or independent source was available.
+- Visible labels were reviewed locally only; raw reports and annotations remain ignored under `research/local/`.
+- Independent reproduction: not claimed; a second legal installation or independent source remains required.
 - Plugin-sdk comparison: documentation-only corroboration; no automatic map entries are created.
 
 
-Next gate: review the clean published diff before two authorized manual sessions. CI is green, but no gameplay session, online audio, SAORS network activity, playlist resolution, merge, release, or tag is authorized yet.
+Next gate: review the promotion diff and require fresh CI before considering the draft PR for review. No online audio, SAORS network activity, playlist resolution, merge, release, or tag is authorized.

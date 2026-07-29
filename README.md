@@ -211,9 +211,13 @@ reports.
 Phase 3D adds a portable, versioned evidence model and a recorder gated by the
 separate `[Research]` section. The recorder is disabled by default, requires the
 experimental observer build, records only stable raw transitions while the player
-is in a vehicle, and does not feed `RadioDecisionEngine`. Manual HUD labels belong
-in ignored `research/local/` reports. The plugin-sdk `eRadioStations.h` list is
-corroborative only; raw 10 remains unknown unless observed naturally.
+is in a vehicle, and does not feed `RadioDecisionEngine`. Two separate manual
+sessions for the exact `gta3_classic_local_candidate` profile produced eleven
+conflict-free, locally reproduced relationships for raws `0..9` and `11`. The
+registry is limited to that exact profile and remains disconnected from gameplay.
+Manual HUD labels belong in ignored `research/local/` reports and are not
+published. Raw 10 remains unobserved, unknown, and absent from the registry. The
+plugin-sdk `eRadioStations.h` list is corroborative only.
 
 Use `saors_radio_map_tool --validate`, `--compare`, `--summarize`, or `--redact`
 without GTA III, plugin-sdk, libVLC, WinHTTP, network, or audio.
