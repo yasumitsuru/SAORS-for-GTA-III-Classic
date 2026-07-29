@@ -95,3 +95,30 @@ names. Those verbs describe plans only.
 ### Radio station research
 
 Phase 3D keeps RadioStationObservationRecorder and the versioned evidence model on a side path from RadioDecisionEngine. The reviewed map registry is scoped to its exact profile and is never used to infer an INI binding. Phase 3E adds a pure resolver with no gameplay consumer.
+
+## Phase 3F identity bindings
+
+A station may have exactly one optional gameplay binding:
+
+```ini
+[Station.Rise]
+Enabled=true
+GameStationIdentity=riseFm
+```
+
+`GameStationIdentity` accepts one normalized known identity other than `unknown`.
+It cannot be combined with `GameStationRaw`. Enabled duplicates of either binding
+kind are configuration errors; a disabled duplicate remains valid. Parsing stays
+pure and does not query the registry.
+
+Binding resolution is deterministic: `GameStationRaw > GameStationIdentity`. The
+controller first finds an exact raw binding, and that binding remains authoritative
+even if disabled. Only without a raw binding does it use the explicitly supplied
+`ExecutableProfileId` and `RadioStationResolver`. Only a `resolved` identity may
+select an identity binding. Unsupported profiles and unknown raws have no fallback.
+Raw `10` remains unknown, unbound, and cannot select `policeRadio` or `radioOff`.
+
+The resolver, controller, plans, and sink remain dry-run only. They do not construct
+or call `StreamManager`, `PlaylistResolver`, WinHTTP, libVLC, an audio backend, or
+a game-write executor. The original radio remains intact and independent playback
+is pending.

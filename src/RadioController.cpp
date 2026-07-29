@@ -4,15 +4,18 @@
 
 namespace saors {
 
-RadioController::RadioController(const ConfigurationData& configuration, RadioActionSink& sink)
-    : configuration_(configuration), sink_(sink) {}
+RadioController::RadioController(const ConfigurationData& configuration,
+                                 const ExecutableProfileId executableProfile,
+                                 const RadioStationResolver& resolver, RadioActionSink& sink)
+    : configuration_(configuration), executableProfile_(executableProfile), resolver_(resolver),
+      sink_(sink) {}
 
 void RadioController::update(const GameStateSnapshot& snapshot) noexcept {
     try {
         RadioActionPlan plan;
         {
             const std::lock_guard<std::mutex> lock(stateMutex_);
-            plan = engine_.evaluate(snapshot, configuration_, state_);
+            plan = engine_.evaluate(snapshot, configuration_, executableProfile_, resolver_, state_);
             applyRadioActionPlan(plan, state_);
         }
         sink_.submit(plan);

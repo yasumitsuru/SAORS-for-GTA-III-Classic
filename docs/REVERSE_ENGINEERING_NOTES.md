@@ -72,4 +72,4 @@ or represents radio off. Independent reproduction is deferred to Phase 3D.
 
 ### Radio station research
 
-Phase 3D keeps RadioStationObservationRecorder and the versioned evidence model on a side path from RadioDecisionEngine. The reviewed map registry is scoped to its exact profile and is never used to infer an INI binding. Phase 3E adds a pure resolver with no gameplay consumer.
+Phase 3D keeps RadioStationObservationRecorder and the versioned evidence model on a side path from RadioDecisionEngine. The reviewed map registry is scoped to its exact profile and is never used during INI parsing. Phase 3F passes an explicit profile and pure resolver only to the calculation-only dry-run controller: `GameStationRaw > GameStationIdentity`, no profile fallback, and raw 10 remains unknown. No audio, network, playlist, game-write, or original-radio operation is added.

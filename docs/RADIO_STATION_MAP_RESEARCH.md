@@ -35,21 +35,15 @@ eleven normalized identities with `locallyReproduced` evidence, scoped only to
 that exact profile. The second session used a different vehicle. Raw 10 was not
 observed and remains unknown, unverified, and absent from the registry.
 
-The registry is diagnosis-only: it never populates `GameStationRaw`, changes
-`RadioDecisionEngine`, creates a controller binding, reads local reports, or
-provides a fallback map for another executable profile. Raw report files remain
-ignored and no visible-label annotation, executable path, log, hash, or other
-local evidence is published. The SDK list remains corroborative documentation,
-not runtime truth. Independent reproduction remains pending.
+The registry remains a pure exact-profile source. It never populates configuration,
+reads local reports, changes the game station, or provides a fallback map for another
+executable profile. Raw report files remain ignored and no visible-label annotation,
+executable path, log, hash, or other local evidence is published. The SDK list remains
+corroborative documentation, not runtime truth. Independent reproduction remains pending.
 
-## Pure resolution
-
-Phase 3E introduces `RadioStationResolver`, which accepts only an
-`ExecutableProfileId` and a raw value. It returns `resolved`, `unknownRaw`,
-`unsupportedProfile`, or `invalidRaw` without reading configuration or touching
-gameplay. The resolver uses the reviewed registry only for the exact
-`gta3_classic_local_candidate` profile: raws `0..9` and `11` resolve, while raw
-`10` and all other unmapped valid raws remain unknown. Unsupported profiles have
-no fallback. The resolver is not consumed by `RadioDecisionEngine`,
-`RadioController`, the observer, or INI binding; `GameStationRaw` remains manual
-pending a separately reviewed dry-run binding phase.
+Phase 3F consumes the pure resolver only through the calculation-only dry-run
+`RadioDecisionEngine`, with an explicit `ExecutableProfileId`. `GameStationRaw`
+remains authoritative over `GameStationIdentity`; only without an exact raw binding
+can a `resolved` identity select an explicit identity binding. Raw 10 remains unknown,
+`policeRadio` and `radioOff` remain unmapped by it, and no fallback, audio, network,
+playlist, game-write, or original-radio operation is added.

@@ -84,12 +84,24 @@ The explicit comparison tolerance is `0.01`. Changes at or below that tolerance
 do not generate `wouldSetVolume`; this avoids plan noise from insignificant
 floating-point differences.
 
-## Raw bindings
+## Phase 3F station bindings
 
-`GameStationRaw` is the only link between a raw game value and a configured
-station. Section names never imply raw values, and raw values never imply GTA III
-station names. Enabled duplicate bindings are configuration errors. Disabled
-duplicates are permitted because they cannot be selected.
+A configured station can bind one of two ways: `GameStationRaw=0..255` or
+`GameStationIdentity=<normalized identity>`. The two keys are mutually exclusive.
+Enabled duplicates of a raw or identity are configuration errors; disabled
+duplicates are allowed. Parsing never queries the station map registry.
 
-Locally observed values remain `0..9` and `11`. Their official station names and
-the radio-off value are not established by Phase 3C.
+`GameStationRaw > GameStationIdentity`. The engine checks exact raw bindings first.
+A matching raw binding is authoritative even when disabled. Only with no raw binding
+does the explicitly supplied `ExecutableProfileId` and `RadioStationResolver` run.
+Only `resolved` can select an identity binding; there is no profile fallback.
+
+The identity-related conservative reasons are `stationRawInvalid`,
+`stationProfileUnsupported`, `stationIdentityUnknown`, and
+`stationIdentityNotBound`. Raw `10` remains `stationIdentityUnknown` with no
+identity, and cannot activate `policeRadio` or `radioOff`.
+
+Plans and simulated state record binding kind and optional normalized identity in
+addition to the raw value and sanitized key. This remains calculation-only: no
+plan executes audio, networking, playlist resolution, game writes, station changes,
+volume changes, or original-radio suppression.

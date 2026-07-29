@@ -1,5 +1,7 @@
 #pragma once
 
+#include "saors_gta3/RadioStationEvidence.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -41,6 +43,7 @@ struct StationConfiguration {
     std::string url;
     bool allowHttp{false};
     std::optional<int> gameStationRaw;
+    std::optional<RadioStationIdentity> gameStationIdentity;
 };
 
 struct ExperimentalConfiguration {

@@ -1,52 +1,37 @@
 # Project status
 
-Last milestone completed: Phase 3D — reproducible raw station mapping, merged into `main` at `cf1f12ce069679cc67813438c7eff77fb1a86066`.
+Last milestone completed: Phase 3E — pure radio-station resolution, merged into `main` at `35a8a13a3ef6ae5173e64307e9fde5ee51c64dfd`.
 
-Current phase: Phase 3E — pure raw radio-station resolution.
+Current phase: Phase 3F — dry-run radio identity binding.
 
-Base: `cf1f12ce069679cc67813438c7eff77fb1a86066`
+Base: `35a8a13a3ef6ae5173e64307e9fde5ee51c64dfd`
 
-## Phase 3D implementation status
+## Phase 3F scope
 
-- Recorder: implemented, pure, bounded, stable-frame filtered, disabled by default.
-- Evidence schema: implemented as version 1 with privacy validation.
-- Portable validator: implemented as `saors_radio_map_tool`.
-- Registry: contains eleven reviewed `locallyReproduced` relationships only for `gta3_classic_local_candidate`; no controller consumption.
-- Configuration: `[Research]` is opt-in and does not enable audio or network activity.
-- Local validation: two manual sessions completed in separate processes against the same exact executable profile; the second used a different vehicle.
-- Station map evidence: raws `0..9` and `11` matched normalized identities and conflict-free visible-label annotations in both sessions.
-- Raw 10: unobserved, unknown, and unverified; it is absent from the registry.
-- Independent reproduction: pending; no second source is claimed.
-
-## Phase 3E scope
-
-- `RadioStationResolver` is a portable, pure lookup from an `ExecutableProfileId` and raw value to an explicit resolution result.
-- Only the exact reviewed profile can resolve raws `0..9` and `11`; raw `10` remains unknown and unverified.
-- Invalid raws and unsupported profiles produce explicit results without fallback, inference, configuration reads, or gameplay consumption.
-- `GameStationRaw` remains the manual controller binding. A possible Phase 3F may evaluate an identity binding in dry-run only after separate review.
+- `StationConfiguration` supports either `GameStationRaw` or normalized `GameStationIdentity`; one station cannot configure both.
+- Parsing rejects unknown identities, `unknown`, and enabled duplicate raw or identity bindings without consulting the registry.
+- `GameStationRaw > GameStationIdentity`: an exact raw binding is authoritative, including a disabled binding.
+- Without a raw binding, `RadioDecisionEngine` accepts an explicit `ExecutableProfileId` and `RadioStationResolver`; only `resolved` may select an identity binding.
+- Invalid raws, unsupported profiles, unknown raws, and unbound identities return distinct dry-run reasons; no profile fallback exists.
+- Raw `10` remains unknown and cannot select `policeRadio` or `radioOff`.
 
 ## Safety and non-regression
 
-The controller remains calculation-only and explicitly bound by GameStationRaw. The ASI does not construct a stream manager, playlist resolver, WinHTTP client, or audio backend for gameplay. No station map is inferred from plugin-sdk names. The original radio remains untouched. No game executable, dump, audio, URL, path, hostname, or raw local report is added by this phase.
+The controller remains calculation-only. `RadioActionPlan`, `SimulatedRadioState`, and `DryRunRadioActionSink` record only simulated `would-*` transitions. The ASI does not construct a stream manager, playlist resolver, WinHTTP client, libVLC runtime, audio backend, or gameplay executor. It does not start audio or networking, write game memory, change the game station or volume, alter the HUD or controls, suppress the original radio, or claim an executable edition or region. Independent playback remains pending.
 
 ## Validation status
 
-- Linux/portable host equivalent: `build/phase3d-make-host-final` compiled with Clang 22 and warnings as errors; CMake target build passed before local-map promotion.
-- Host test suite: `ctest --test-dir build/phase3d-make-tests --output-on-failure` passed 129/129 tests before local-map promotion.
-- Portable tool smoke test: validate, summarize, and redact passed with a synthetic raw-3 and unknown raw-10 document.
-- MSVC x86: clean Release x86 promotion build passed 130/130 tests with warnings as errors; fresh GitHub Actions Windows x86 CI passed `build`, `plugin-sdk compile probe`, and `experimental observer and controller dry-run` on the promotion commit.
-- MinGW i686 and Linux host: fresh GitHub Actions `Build Linux MinGW Windows x86` workflow passed `cross-build` and `test-host` on the promotion commit.
-- Gameplay validation: two controlled manual sessions completed with the observer and recorder only; no gameplay audio, network, playlist, or controller execution was enabled.
-- Synthetic unit tests cover recorder, evidence conflicts, JSON privacy, parser truncation/ranges, research configuration, and exact-profile registry behavior.
+- WSL/Clang host build with warnings as errors passed 138/138 tests.
+- MSVC Win32 Release with warnings as errors passed 147/147 tests, including the plugin-sdk compile probe.
+- Fresh GitHub Actions Build Linux MinGW Windows x86 passed cross-build and test-host.
+- Fresh GitHub Actions Build Windows x86 passed build, plugin-sdk compile probe, and experimental observer and controller dry-run.
+- SAORSForGTA3.asi was verified as PE32 x86 (14C machine) with no direct winhttp.dll or libvlc.dll imports.
+- Phase 3E published the pure resolver for the exact reviewed profile only; raw `10` remains absent from the registry.
 
 ## Evidence status
 
-- Executable verification: `locally_reproduced` remains an exact-profile property and is not an edition or region claim.
-- Station map: raws `0..9` and `11` are `locallyReproduced` from two separate, conflict-free local sessions.
-- Raw 10: not observed; remains unknown and unverified.
-- Visible labels were reviewed locally only; raw reports and annotations remain ignored under `research/local/`.
-- Independent reproduction: not claimed; a second legal installation or independent source remains required.
-- Plugin-sdk comparison: documentation-only corroboration; no automatic map entries are created.
+- The registry contains only reviewed locally reproduced relationships for the exact `gta3_classic_local_candidate` profile.
+- No profile fallback or automatic map expansion is authorized.
+- Independent reproduction and any real gameplay audio remain out of scope.
 
-
-Next gate: review the pure resolver diff and its validation. No online audio, SAORS network activity, playlist resolution, gameplay binding, merge, release, or tag is authorized.
+Next gate: final review and an explicitly authorized squash merge. No real executor, gameplay audio, networking, playlist activity, game writes, release, or tag is authorized.

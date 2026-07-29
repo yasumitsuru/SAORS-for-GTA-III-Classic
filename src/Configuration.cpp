@@ -235,6 +235,14 @@ void assignStationValue(ConfigurationResult& result, const std::string& stationK
         } else {
             addInvalidValueError(result, lineNumber, key, "an integer from 0 through 255");
         }
+    } else if (normalizedKey == "gamestationidentity") {
+        const auto parsed = radioStationIdentityFromName(value);
+        if (parsed.has_value() && *parsed != RadioStationIdentity::unknown) {
+            station.gameStationIdentity = *parsed;
+        } else {
+            addInvalidValueError(result, lineNumber, key,
+                                 "a known radio station identity other than unknown");
+        }
     } else {
         result.warnings.push_back("line " + std::to_string(lineNumber) + ": unknown station key '" +
                                   key + "'");
@@ -305,16 +313,31 @@ void assignResearchValue(ConfigurationResult& result, const std::string& key,
 }
 
 void validateStationBindings(ConfigurationResult& result) {
-    std::map<int, std::size_t> enabledBindings;
+    std::map<int, std::size_t> enabledRawBindings;
+    std::map<RadioStationIdentity, std::size_t> enabledIdentityBindings;
     for (const auto& entry : result.value.stations) {
         const auto& station = entry.second;
-        if (!station.enabled || !station.gameStationRaw) {
+        if (station.gameStationRaw && station.gameStationIdentity) {
+            result.errors.push_back("station '" + entry.first +
+                                    "' cannot set both GameStationRaw and GameStationIdentity");
+        }
+        if (!station.enabled) {
             continue;
         }
-        const auto count = ++enabledBindings[*station.gameStationRaw];
-        if (count == 2U) {
-            result.errors.push_back("duplicate enabled GameStationRaw binding for raw " +
-                                    std::to_string(*station.gameStationRaw));
+        if (station.gameStationRaw) {
+            const auto count = ++enabledRawBindings[*station.gameStationRaw];
+            if (count == 2U) {
+                result.errors.push_back("duplicate enabled GameStationRaw binding for raw " +
+                                        std::to_string(*station.gameStationRaw));
+            }
+        }
+        if (station.gameStationIdentity) {
+            const auto count = ++enabledIdentityBindings[*station.gameStationIdentity];
+            if (count == 2U) {
+                result.errors.push_back(
+                    "duplicate enabled GameStationIdentity binding for identity " +
+                    std::string(radioStationIdentityName(*station.gameStationIdentity)));
+            }
         }
     }
 }
