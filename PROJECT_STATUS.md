@@ -8,7 +8,7 @@ Base: a23fd18b3ecc48fa4aa5a02f42ef8b222a67fff8
 Branch: research/radio-station-map
 Commit: b2faa0a feat: add reproducible radio station mapping infrastructure
 Draft PR: #6 https://github.com/yasumitsuru/SAORS-for-GTA-III-Classic/pull/6
-Publication: branch pushed to origin/research/radio-station-map; no merge, release, or tag created.
+Publication: branch pushed to origin/research/radio-station-map; initial PR CI passed on Windows x86 and Linux/MinGW; no merge, release, or tag created.
 
 ## Phase 3D.1 implementation status
 
@@ -32,8 +32,8 @@ The controller remains calculation-only and explicitly bound by GameStationRaw. 
 - Linux/portable host equivalent: `build/phase3d-make-host-final` compiled with Clang 22 and warnings as errors; CMake target build passed.
 - Host test suite: `ctest --test-dir build/phase3d-make-tests --output-on-failure` passed 129/129 tests.
 - Portable tool smoke test: validate, summarize, and redact passed with a synthetic raw-3 and unknown raw-10 document.
-- MSVC x86: CI initial run is in progress; local MSVC execution was not available in this environment.
-- MinGW i686: CI cross-build and native Linux host tests passed; no local i686 MinGW compiler was available.
+- MSVC x86: CI passed build, plugin-sdk compile probe, and experimental observer/controller dry-run; local execution was not available in this environment.
+- MinGW i686: CI cross-build passed; native Linux host tests passed; no local i686 MinGW compiler was available.
 - Gameplay smoke test: not run; no GTA III executable or session was used.
 - Synthetic unit tests cover recorder, evidence conflicts, JSON privacy, parser truncation/ranges, research configuration, and registry non-inference.
 
@@ -47,4 +47,4 @@ The controller remains calculation-only and explicitly bound by GameStationRaw. 
 - Plugin-sdk comparison: documentation-only corroboration; no automatic map entries are created.
 
 
-Next gate: wait for the initial Windows x86 CI checks to pass, then review the clean published diff before two authorized manual sessions. No gameplay session, online audio, SAORS network activity, playlist resolution, merge, release, or tag is authorized yet.
+Next gate: review the clean published diff before two authorized manual sessions. CI is green, but no gameplay session, online audio, SAORS network activity, playlist resolution, merge, release, or tag is authorized yet.
