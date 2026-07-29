@@ -230,6 +230,7 @@ add_library(
         src/RadioStationEvidence.cpp
         src/RadioStationMapRegistry.cpp
         src/RadioStationObservationRecorder.cpp
+        src/RadioStationResolver.cpp
         src/StreamManager.cpp
         src/UrlSanitizer.cpp
 )
@@ -455,6 +456,7 @@ if(SAORS_BUILD_TESTS)
         tests/RadioDecisionTests.cpp
         tests/RadioStationEvidenceTests.cpp
         tests/RadioStationObservationRecorderTests.cpp
+        tests/RadioStationResolverTests.cpp
         tests/StreamManagerTests.cpp
         tests/UrlSanitizerTests.cpp
     )

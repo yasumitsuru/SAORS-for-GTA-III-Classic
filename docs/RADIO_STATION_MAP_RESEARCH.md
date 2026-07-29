@@ -41,3 +41,15 @@ provides a fallback map for another executable profile. Raw report files remain
 ignored and no visible-label annotation, executable path, log, hash, or other
 local evidence is published. The SDK list remains corroborative documentation,
 not runtime truth. Independent reproduction remains pending.
+
+## Pure resolution
+
+Phase 3E introduces `RadioStationResolver`, which accepts only an
+`ExecutableProfileId` and a raw value. It returns `resolved`, `unknownRaw`,
+`unsupportedProfile`, or `invalidRaw` without reading configuration or touching
+gameplay. The resolver uses the reviewed registry only for the exact
+`gta3_classic_local_candidate` profile: raws `0..9` and `11` resolve, while raw
+`10` and all other unmapped valid raws remain unknown. Unsupported profiles have
+no fallback. The resolver is not consumed by `RadioDecisionEngine`,
+`RadioController`, the observer, or INI binding; `GameStationRaw` remains manual
+pending a separately reviewed dry-run binding phase.

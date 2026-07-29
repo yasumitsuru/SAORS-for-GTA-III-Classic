@@ -64,4 +64,4 @@ There is no gameplay audio executor in Phase 3C.
 
 ### Radio station research
 
-Phase 3D keeps RadioStationObservationRecorder and the versioned evidence model on a side path from RadioDecisionEngine. The portable map registry is empty until reviewed evidence exists and is never used to infer an INI binding.
+Phase 3D keeps RadioStationObservationRecorder and the versioned evidence model on a side path from RadioDecisionEngine. The reviewed map registry is scoped to its exact profile and is never used to infer an INI binding. Phase 3E adds a pure resolver with no gameplay consumer.

@@ -74,8 +74,9 @@ plugin-sdk `GAME_10EN` map is not an edition or region identification.
    updates simulated state only.
 7. An opt-in `RadioStationObservationRecorder` records stable raw transitions only;
    it never names stations or starts network/audio work.
-8. `saors_radio_map_tool` validates and compares sanitized local evidence; its
-   registry remains empty until reproducible evidence is reviewed.
+8. `saors_radio_map_tool` validates and compares sanitized local evidence. The
+   reviewed registry and pure `RadioStationResolver` can resolve only exact-profile
+   raw values; neither has a gameplay consumer.
 9. `PlaylistResolver`, `StreamManager`, and audio backends remain isolated from
    gameplay and are exercised through `saors_stream_probe`.
 10. The original radio remains the only real in-game audio source.
@@ -221,6 +222,14 @@ plugin-sdk `eRadioStations.h` list is corroborative only.
 
 Use `saors_radio_map_tool --validate`, `--compare`, `--summarize`, or `--redact`
 without GTA III, plugin-sdk, libVLC, WinHTTP, network, or audio.
+
+Phase 3E adds `RadioStationResolver`, a pure C++17 lookup from an exact
+executable profile and raw value to `resolved`, `unknownRaw`,
+`unsupportedProfile`, or `invalidRaw`. It resolves only the reviewed raws `0..9`
+and `11` for `gta3_classic_local_candidate`; raw `10` remains unknown. The
+resolver does not read configuration, start gameplay audio or networking, or
+connect to `RadioDecisionEngine` or `RadioController`; `GameStationRaw` remains
+the manual binding until a later reviewed dry-run phase.
 
 ## Limitations
 
