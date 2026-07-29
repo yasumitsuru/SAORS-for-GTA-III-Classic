@@ -21,7 +21,11 @@ The controller remains calculation-only. `RadioActionPlan`, `SimulatedRadioState
 
 ## Validation status
 
-- Phase 3F validation is pending the portable and MSVC x86 builds for this branch.
+- WSL/Clang host build with warnings as errors passed 138/138 tests.
+- MSVC Win32 Release with warnings as errors passed 147/147 tests, including the plugin-sdk compile probe.
+- Fresh GitHub Actions Build Linux MinGW Windows x86 passed cross-build and test-host.
+- Fresh GitHub Actions Build Windows x86 passed build, plugin-sdk compile probe, and experimental observer and controller dry-run.
+- SAORSForGTA3.asi was verified as PE32 x86 (14C machine) with no direct winhttp.dll or libvlc.dll imports.
 - Phase 3E published the pure resolver for the exact reviewed profile only; raw `10` remains absent from the registry.
 
 ## Evidence status
@@ -29,3 +33,5 @@ The controller remains calculation-only. `RadioActionPlan`, `SimulatedRadioState
 - The registry contains only reviewed locally reproduced relationships for the exact `gta3_classic_local_candidate` profile.
 - No profile fallback or automatic map expansion is authorized.
 - Independent reproduction and any real gameplay audio remain out of scope.
+
+Next gate: final review and an explicitly authorized squash merge. No real executor, gameplay audio, networking, playlist activity, game writes, release, or tag is authorized.
