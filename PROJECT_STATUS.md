@@ -31,8 +31,8 @@ The controller remains calculation-only and explicitly bound by GameStationRaw. 
 - Linux/portable host equivalent: `build/phase3d-make-host-final` compiled with Clang 22 and warnings as errors; CMake target build passed before local-map promotion.
 - Host test suite: `ctest --test-dir build/phase3d-make-tests --output-on-failure` passed 129/129 tests before local-map promotion.
 - Portable tool smoke test: validate, summarize, and redact passed with a synthetic raw-3 and unknown raw-10 document.
-- MSVC x86: clean Release x86 promotion build passed 130/130 tests with warnings as errors; fresh CI is pending.
-- MinGW i686: prior CI cross-build passed; the promotion CI is pending.
+- MSVC x86: clean Release x86 promotion build passed 130/130 tests with warnings as errors; fresh GitHub Actions Windows x86 CI passed `build`, `plugin-sdk compile probe`, and `experimental observer and controller dry-run` on the promotion commit.
+- MinGW i686 and Linux host: fresh GitHub Actions `Build Linux MinGW Windows x86` workflow passed `cross-build` and `test-host` on the promotion commit.
 - Gameplay validation: two controlled manual sessions completed with the observer and recorder only; no gameplay audio, network, playlist, or controller execution was enabled.
 - Synthetic unit tests cover recorder, evidence conflicts, JSON privacy, parser truncation/ranges, research configuration, and exact-profile registry behavior.
 
@@ -46,4 +46,4 @@ The controller remains calculation-only and explicitly bound by GameStationRaw. 
 - Plugin-sdk comparison: documentation-only corroboration; no automatic map entries are created.
 
 
-Next gate: review the promotion diff and require fresh CI before considering the draft PR for review. No online audio, SAORS network activity, playlist resolution, merge, release, or tag is authorized.
+Next gate: final diff review and pull-request review. No online audio, SAORS network activity, playlist resolution, merge, release, or tag is authorized.
