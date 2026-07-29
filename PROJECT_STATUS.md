@@ -1,16 +1,12 @@
 # Project status
 
-Last milestone completed before this PR: Phase 3C — connect GameStateSnapshot to RadioController in dry-run.
+Last milestone completed: Phase 3D — reproducible raw station mapping, merged into `main` at `cf1f12ce069679cc67813438c7eff77fb1a86066`.
 
-Current phase: Phase 3D — reproducible raw station mapping.
+Current phase: Phase 3E — pure raw radio-station resolution.
 
-Base: a23fd18b3ecc48fa4aa5a02f42ef8b222a67fff8
-Branch: research/radio-station-map
-Commit: b2faa0a feat: add reproducible radio station mapping infrastructure
-Draft PR: #6 https://github.com/yasumitsuru/SAORS-for-GTA-III-Classic/pull/6
-Publication: branch pushed to origin/research/radio-station-map; initial PR CI passed on Windows x86 and Linux/MinGW; no merge, release, or tag created.
+Base: `cf1f12ce069679cc67813438c7eff77fb1a86066`
 
-## Phase 3D.1 implementation status
+## Phase 3D implementation status
 
 - Recorder: implemented, pure, bounded, stable-frame filtered, disabled by default.
 - Evidence schema: implemented as version 1 with privacy validation.
@@ -21,6 +17,13 @@ Publication: branch pushed to origin/research/radio-station-map; initial PR CI p
 - Station map evidence: raws `0..9` and `11` matched normalized identities and conflict-free visible-label annotations in both sessions.
 - Raw 10: unobserved, unknown, and unverified; it is absent from the registry.
 - Independent reproduction: pending; no second source is claimed.
+
+## Phase 3E scope
+
+- `RadioStationResolver` is a portable, pure lookup from an `ExecutableProfileId` and raw value to an explicit resolution result.
+- Only the exact reviewed profile can resolve raws `0..9` and `11`; raw `10` remains unknown and unverified.
+- Invalid raws and unsupported profiles produce explicit results without fallback, inference, configuration reads, or gameplay consumption.
+- `GameStationRaw` remains the manual controller binding. A possible Phase 3F may evaluate an identity binding in dry-run only after separate review.
 
 ## Safety and non-regression
 
@@ -46,4 +49,4 @@ The controller remains calculation-only and explicitly bound by GameStationRaw. 
 - Plugin-sdk comparison: documentation-only corroboration; no automatic map entries are created.
 
 
-Next gate: final diff review and pull-request review. No online audio, SAORS network activity, playlist resolution, merge, release, or tag is authorized.
+Next gate: review the pure resolver diff and its validation. No online audio, SAORS network activity, playlist resolution, gameplay binding, merge, release, or tag is authorized.
