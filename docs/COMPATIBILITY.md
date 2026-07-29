@@ -61,3 +61,7 @@ only snapshots supplied by an available observer and requires an explicit
 `GameStationRaw` configuration binding. Unavailable state, missing bindings, and
 invalid configuration produce no start plan and preserve the original radio.
 There is no gameplay audio executor in Phase 3C.
+
+### Radio station research
+
+Phase 3D keeps RadioStationObservationRecorder and the versioned evidence model on a side path from RadioDecisionEngine. The portable map registry is empty until reviewed evidence exists and is never used to infer an INI binding.

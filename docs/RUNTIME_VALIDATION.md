@@ -253,3 +253,7 @@ summary was collected, and the game directory returned to its prior state.
 | GTA III observer network/audio isolation | zero SAORS connections and no online audio |
 | GTA III in-game audible validation | not executed by the automation |
 | GTA III original radio | remained intact during the observer smoke |
+
+### Radio station research
+
+Phase 3D keeps RadioStationObservationRecorder and the versioned evidence model on a side path from RadioDecisionEngine. The portable map registry is empty until reviewed evidence exists and is never used to infer an INI binding.

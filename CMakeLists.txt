@@ -227,6 +227,9 @@ add_library(
         src/RadioController.cpp
         src/RadioDecision.cpp
         src/RadioDecisionEngine.cpp
+        src/RadioStationEvidence.cpp
+        src/RadioStationMapRegistry.cpp
+        src/RadioStationObservationRecorder.cpp
         src/StreamManager.cpp
         src/UrlSanitizer.cpp
 )
@@ -376,6 +379,21 @@ if(SAORS_BUILD_STREAM_PROBE)
     saors_enable_warnings(saors_stream_probe)
 endif()
 
+add_executable(
+    saors_radio_map_tool
+    tools/radio_map/Main.cpp
+    src/RadioStationEvidence.cpp
+)
+target_include_directories(saors_radio_map_tool PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+target_compile_features(saors_radio_map_tool PRIVATE cxx_std_17)
+set_target_properties(
+    saors_radio_map_tool
+    PROPERTIES
+        OUTPUT_NAME "saors_radio_map_tool"
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+saors_enable_warnings(saors_radio_map_tool)
+
 if(SAORS_BUILD_EXE_PROBE)
     if(NOT WIN32)
         message(FATAL_ERROR "SAORS_BUILD_EXE_PROBE requires a Windows target toolchain.")
@@ -435,6 +453,8 @@ if(SAORS_BUILD_TESTS)
         tests/PlaylistParserTests.cpp
         tests/PlaylistResolverTests.cpp
         tests/RadioDecisionTests.cpp
+        tests/RadioStationEvidenceTests.cpp
+        tests/RadioStationObservationRecorderTests.cpp
         tests/StreamManagerTests.cpp
         tests/UrlSanitizerTests.cpp
     )
@@ -466,6 +486,9 @@ if(SAORS_BUILD_TESTS)
         )
     endif()
     saors_enable_warnings(saors_tests)
+    if(NOT MSVC)
+        target_compile_options(saors_tests PRIVATE -Wno-c2y-extensions)
+    endif()
 
     include(Catch)
     catch_discover_tests(saors_tests)

@@ -69,3 +69,7 @@ Phase 3C does not add or infer any game address or station-name mapping.
 `GameStationRaw` is a user-supplied configuration binding for one observed raw
 value. It is not evidence that the raw value has an official GTA III station name
 or represents radio off. Independent reproduction is deferred to Phase 3D.
+
+### Radio station research
+
+Phase 3D keeps RadioStationObservationRecorder and the versioned evidence model on a side path from RadioDecisionEngine. The portable map registry is empty until reviewed evidence exists and is never used to infer an INI binding.

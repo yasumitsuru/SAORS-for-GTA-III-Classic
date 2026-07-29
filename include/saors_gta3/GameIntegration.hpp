@@ -35,6 +35,7 @@ class GameIntegration {
     [[nodiscard]] ObserverInstallResult observerInstallResult() const noexcept;
     [[nodiscard]] std::string observerStatusDescription() const;
     [[nodiscard]] std::string detectedExecutableDescription() const;
+    [[nodiscard]] ExecutableProfileId detectedExecutableProfile() const noexcept;
     [[nodiscard]] std::string fingerprintStatusDescription() const;
     [[nodiscard]] std::string verificationStatusDescription() const;
     [[nodiscard]] bool fileFingerprintMatch() const noexcept;

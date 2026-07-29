@@ -91,3 +91,7 @@ This phase does not start, pause, resume, switch, set volume, or stop real audio
 It does not download a playlist, load libVLC intentionally, mute the original
 radio, change a game station, write gameplay state, or identify raw station
 names. Those verbs describe plans only.
+
+### Radio station research
+
+Phase 3D keeps RadioStationObservationRecorder and the versioned evidence model on a side path from RadioDecisionEngine. The portable map registry is empty until reviewed evidence exists and is never used to infer an INI binding.

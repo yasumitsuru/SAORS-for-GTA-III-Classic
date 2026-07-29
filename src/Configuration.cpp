@@ -273,6 +273,37 @@ void assignExperimentalValue(ConfigurationResult& result, const std::string& key
     }
 }
 
+void assignResearchValue(ConfigurationResult& result, const std::string& key,
+                           const std::string& value, const std::size_t lineNumber) {
+    const auto normalizedKey = lowercase(key);
+    auto& research = result.value.research;
+    if (normalizedKey == "enableradiostationmaprecorder" ||
+        normalizedKey == "logradiostationobservations") {
+        const auto parsed = parseBoolean(value);
+        if (!parsed.has_value()) {
+            addInvalidValueError(result, lineNumber, key, "a boolean");
+            return;
+        }
+        if (normalizedKey == "enableradiostationmaprecorder") {
+            research.enableRadioStationMapRecorder = *parsed;
+        } else {
+            research.logRadioStationObservations = *parsed;
+        }
+        return;
+    }
+    if (normalizedKey == "radiostationminimumstableframes") {
+        const auto parsed = parseUnsigned(value);
+        if (!parsed.has_value() || *parsed < 1U || *parsed > 600U) {
+            addInvalidValueError(result, lineNumber, key, "an integer from 1 through 600");
+            return;
+        }
+        research.radioStationMinimumStableFrames = *parsed;
+        return;
+    }
+    result.warnings.push_back("line " + std::to_string(lineNumber) +
+                              ": unknown Research key '" + key + "'");
+}
+
 void validateStationBindings(ConfigurationResult& result) {
     std::map<int, std::size_t> enabledBindings;
     for (const auto& entry : result.value.stations) {
@@ -345,6 +376,8 @@ ConfigurationResult Configuration::load(const std::filesystem::path& path) {
             assignGeneralValue(result, key, value, lineNumber);
         } else if (lowercase(currentSection) == "experimental") {
             assignExperimentalValue(result, key, value, lineNumber);
+        } else if (lowercase(currentSection) == "research") {
+            assignResearchValue(result, key, value, lineNumber);
         } else if (currentSection.rfind("Station.", 0) == 0 && currentSection.size() > 8) {
             assignStationValue(result, currentSection.substr(8), key, value, lineNumber);
         } else if (currentSection.empty()) {

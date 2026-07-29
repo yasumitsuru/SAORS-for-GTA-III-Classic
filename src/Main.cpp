@@ -6,6 +6,7 @@
 #include "saors_gta3/PeImageReader.hpp"
 #include "saors_gta3/RadioActionSink.hpp"
 #include "saors_gta3/RadioController.hpp"
+#include "saors_gta3/RadioStationObservationRecorder.hpp"
 
 #include <windows.h>
 
@@ -33,6 +34,35 @@ std::filesystem::path modulePath(const HMODULE module) {
 const char* booleanName(const bool value) noexcept {
     return value ? "true" : "false";
 }
+
+class SnapshotListenerMultiplexer final : public saors::GameStateSnapshotListener {
+  public:
+    void setRecorder(saors::RadioStationObservationRecorder* recorder, bool logObservations) noexcept {
+        recorder_ = recorder;
+        logObservations_ = logObservations;
+    }
+    void setController(saors::GameStateSnapshotListener* controller) noexcept {
+        controller_ = controller;
+    }
+    void onGameStateSnapshot(const saors::GameStateSnapshot& snapshot) noexcept override {
+        if (recorder_ != nullptr) {
+            const auto observation = recorder_->observe(snapshot);
+            if (observation && logObservations_) {
+                saors::Logger::info(
+                    "Radio research: observation=" + std::to_string(observation->ordinal) +
+                    " raw=" + std::to_string(observation->rawValue) +
+                    " stable-frames=" + std::to_string(observation->stableFrames));
+            }
+        }
+        if (controller_ != nullptr) {
+            controller_->onGameStateSnapshot(snapshot);
+        }
+    }
+  private:
+    saors::RadioStationObservationRecorder* recorder_{nullptr};
+    saors::GameStateSnapshotListener* controller_{nullptr};
+    bool logObservations_{false};
+};
 
 DWORD WINAPI initializePlugin(const LPVOID parameter) {
     try {
@@ -96,17 +126,44 @@ DWORD WINAPI initializePlugin(const LPVOID parameter) {
                                 runtimeConfiguration.experimental.observerDryRun,
                                 runtimeConfiguration.experimental.logStateTransitions);
 
+        auto* listener = new SnapshotListenerMultiplexer;
+#if SAORS_HAS_EXPERIMENTAL_GAME_OBSERVER
+        saors::RadioStationObservationRecorder* recorder = nullptr;
+        if (runtimeConfiguration.research.enableRadioStationMapRecorder &&
+            runtimeConfiguration.experimental.enableGameObserver &&
+            !runtimeConfiguration.experimental.observerDryRun &&
+            game->detectedExecutableProfile() != saors::ExecutableProfileId::unsupported) {
+            recorder = new saors::RadioStationObservationRecorder(
+                game->detectedExecutableProfile(),
+                runtimeConfiguration.research.radioStationMinimumStableFrames);
+            recorder->reset("runtime-session");
+            listener->setRecorder(recorder, runtimeConfiguration.research.logRadioStationObservations);
+            saors::Logger::info("Radio station recorder: enabled; audio and network remain disabled");
+        } else if (runtimeConfiguration.research.enableRadioStationMapRecorder) {
+            saors::Logger::warning(
+                "Radio station recorder: requires a non-dry-run observer and an exact executable profile");
+        }
+#else
+        if (runtimeConfiguration.research.enableRadioStationMapRecorder ||
+            runtimeConfiguration.research.logRadioStationObservations) {
+            saors::Logger::warning("Radio station recorder: unavailable in this build");
+        }
+#endif
+
 #if SAORS_HAS_RADIO_CONTROLLER_DRY_RUN
         if (runtimeConfiguration.experimental.enableRadioController) {
             auto* sink = new saors::DryRunRadioActionSink(
                 runtimeConfiguration.experimental.logRadioDecisions);
             auto* controller = new saors::RadioController(runtimeConfiguration, *sink);
-            game->setSnapshotListener(controller);
+            listener->setController(controller);
+            game->setSnapshotListener(listener);
             saors::Logger::info("Radio controller: dry-run");
         } else {
             saors::Logger::info("Radio controller: disabled");
+            game->setSnapshotListener(listener);
         }
 #else
+        game->setSnapshotListener(listener);
         if (runtimeConfiguration.experimental.enableRadioController) {
             saors::Logger::warning("Radio controller: unavailable in this build");
         } else {
