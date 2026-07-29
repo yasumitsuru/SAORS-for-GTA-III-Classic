@@ -30,6 +30,7 @@ Linux game plugin.
 | Unsupported executable handling | Implemented; no exact match means no hooks |
 | GTA III state observer | Experimental MSVC x86 callback; exact fingerprint, expected bytes, dry-run, and rollback required |
 | Snapshot-driven radio decisions | Implemented as an opt-in dry-run with sanitized plans and simulated state |
+| Radio station raw mapping research | Recorder, versioned local evidence schema, portable validator, no automatic runtime map |
 | GTA III radio replacement | Not implemented; original radio remains intact |
 | Optional libVLC backend | Implemented; Windows x86 build, offline lifecycle, localhost, and authorized AAC/HTTP runtime tested |
 | Standalone stream probe | Implemented; real AAC audio, controls, and shutdown manually validated |
@@ -71,9 +72,13 @@ plugin-sdk `GAME_10EN` map is not an edition or region identification.
 5. An optional listener sends each snapshot to a pure `RadioDecisionEngine`.
 6. `RadioController` submits sanitized `would-*` plans to a dry-run sink that
    updates simulated state only.
-7. `PlaylistResolver`, `StreamManager`, and audio backends remain isolated from
+7. An opt-in `RadioStationObservationRecorder` records stable raw transitions only;
+   it never names stations or starts network/audio work.
+8. `saors_radio_map_tool` validates and compares sanitized local evidence; its
+   registry remains empty until reproducible evidence is reviewed.
+9. `PlaylistResolver`, `StreamManager`, and audio backends remain isolated from
    gameplay and are exercised through `saors_stream_probe`.
-8. The original radio remains the only real in-game audio source.
+10. The original radio remains the only real in-game audio source.
 
 ## Build
 
@@ -200,6 +205,18 @@ AllowHttp=true
 
 Do not put credentials or private tokens in a configuration file shared with bug
 reports.
+
+## Radio station mapping research
+
+Phase 3D adds a portable, versioned evidence model and a recorder gated by the
+separate `[Research]` section. The recorder is disabled by default, requires the
+experimental observer build, records only stable raw transitions while the player
+is in a vehicle, and does not feed `RadioDecisionEngine`. Manual HUD labels belong
+in ignored `research/local/` reports. The plugin-sdk `eRadioStations.h` list is
+corroborative only; raw 10 remains unknown unless observed naturally.
+
+Use `saors_radio_map_tool --validate`, `--compare`, `--summarize`, or `--redact`
+without GTA III, plugin-sdk, libVLC, WinHTTP, network, or audio.
 
 ## Limitations
 

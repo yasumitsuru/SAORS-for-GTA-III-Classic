@@ -1,0 +1,48 @@
+# Project status
+
+Last milestone completed before this PR: Phase 3C — connect GameStateSnapshot to RadioController in dry-run.
+
+Current phase: Phase 3D — reproducible raw station mapping.
+
+Base: a23fd18b3ecc48fa4aa5a02f42ef8b222a67fff8
+Branch: research/radio-station-map
+Commit/PR: not created in this working session; draft PR remains pending.
+
+## Phase 3D.1 implementation status
+
+- Recorder: implemented, pure, bounded, stable-frame filtered, disabled by default.
+- Evidence schema: implemented as version 1 with privacy validation.
+- Portable validator: implemented as saors_radio_map_tool.
+- Registry: implemented separately and empty by default; no controller consumption.
+- Configuration: [Research] is opt-in and does not enable audio or network activity.
+- Raw values observed by prior research: 0..9 and 11.
+- Raw 10: not observed; identity remains unknown and no value is forced.
+- HUD labels: no new local gameplay sessions were performed in this environment.
+- Local reproduction: pending two complete sessions and sanitized report review; no GTA III session was run in this environment.
+- Independent reproduction: pending; no second source is claimed.
+
+## Safety and non-regression
+
+The controller remains calculation-only and explicitly bound by GameStationRaw. The ASI does not construct a stream manager, playlist resolver, WinHTTP client, or audio backend for gameplay. No station map is inferred from plugin-sdk names. The original radio remains untouched. No game executable, dump, audio, URL, path, hostname, or raw local report is added by this phase.
+
+## Validation status
+
+- Linux/portable host equivalent: `build/phase3d-make-host-final` compiled with Clang 22 and warnings as errors; CMake target build passed.
+- Host test suite: `ctest --test-dir build/phase3d-make-tests --output-on-failure` passed 129/129 tests.
+- Portable tool smoke test: validate, summarize, and redact passed with a synthetic raw-3 and unknown raw-10 document.
+- MSVC x86: not run in this environment; no MSVC developer prompt was available.
+- MinGW i686: not run; no i686 MinGW compiler was available.
+- Gameplay smoke test: not run; no GTA III executable or session was used.
+- Synthetic unit tests cover recorder, evidence conflicts, JSON privacy, parser truncation/ranges, research configuration, and registry non-inference.
+
+## Evidence status
+
+- Raw values from prior research: 0..9 and 11.
+- Raw 10: not observed; remains unknown and unverified.
+- HUD-confirmed labels in this PR: none; no local GTA III sessions were performed.
+- Local reproduction: not claimed; two complete sessions remain required.
+- Independent reproduction: pending; no second legal installation or independent source was available.
+- Plugin-sdk comparison: documentation-only corroboration; no automatic map entries are created.
+
+
+Next phase: complete the two authorized manual sessions, compare sanitized reports, then separately plan only the guarded audio-executor research.

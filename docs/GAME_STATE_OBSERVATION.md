@@ -127,3 +127,7 @@ controller produces sanitized `would-*` plans and simulated state; it cannot
 execute them. It does not mute the original radio, change stations or volume,
 alter controls or HUD, access vehicle internals, resolve playlists during
 gameplay, or start network/audio work.
+
+### Radio station research
+
+Phase 3D keeps RadioStationObservationRecorder and the versioned evidence model on a side path from RadioDecisionEngine. The portable map registry is empty until reviewed evidence exists and is never used to infer an INI binding.

@@ -145,6 +145,14 @@ std::string GameIntegration::observerStatusDescription() const {
     return observerInstallStatusName(observerResult_.status);
 }
 
+ExecutableProfileId GameIntegration::detectedExecutableProfile() const noexcept {
+#if SAORS_HAS_EXECUTABLE_FINGERPRINTING
+    return match_.exact() ? match_.id : ExecutableProfileId::unsupported;
+#else
+    return ExecutableProfileId::unsupported;
+#endif
+}
+
 std::string GameIntegration::detectedExecutableDescription() const {
     switch (detectedVersion_) {
     case ExecutableVersion::gta3_classic_local_candidate:

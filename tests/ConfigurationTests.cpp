@@ -61,6 +61,9 @@ TEST_CASE("Default configuration is safe and enabled") {
     CHECK_FALSE(configuration.experimental.enableRadioController);
     CHECK(configuration.experimental.radioControllerDryRun);
     CHECK(configuration.experimental.logRadioDecisions);
+    CHECK_FALSE(configuration.research.enableRadioStationMapRecorder);
+    CHECK(configuration.research.radioStationMinimumStableFrames == 15U);
+    CHECK_FALSE(configuration.research.logRadioStationObservations);
     CHECK(configuration.stations.empty());
 }
 
@@ -390,4 +393,59 @@ URL=https://example.invalid/stream
     CHECK_FALSE(result.value.stations.at("Legacy").gameStationRaw);
     CHECK_FALSE(result.value.experimental.enableRadioController);
     CHECK(result.value.experimental.radioControllerDryRun);
+}
+
+TEST_CASE("Research configuration validates safe opt-in limits") {
+    const TemporaryIni file{R"ini(
+[General]
+Enabled=true
+
+[Research]
+EnableRadioStationMapRecorder=true
+RadioStationMinimumStableFrames=600
+LogRadioStationObservations=true
+)ini"};
+
+    const auto result = saors::Configuration::load(file.path());
+
+    REQUIRE(result.success);
+    CHECK(result.value.research.enableRadioStationMapRecorder);
+    CHECK(result.value.research.radioStationMinimumStableFrames == 600U);
+    CHECK(result.value.research.logRadioStationObservations);
+}
+
+TEST_CASE("Research configuration rejects zero, overflow, and invalid booleans") {
+    const TemporaryIni file{R"ini(
+[General]
+Enabled=true
+
+[Research]
+EnableRadioStationMapRecorder=maybe
+RadioStationMinimumStableFrames=0
+LogRadioStationObservations=unknown
+)ini"};
+
+    const auto result = saors::Configuration::load(file.path());
+
+    CHECK_FALSE(result.success);
+    CHECK(result.errors.size() == 3U);
+    CHECK_FALSE(result.value.research.enableRadioStationMapRecorder);
+    CHECK(result.value.research.radioStationMinimumStableFrames == 15U);
+    CHECK_FALSE(result.value.research.logRadioStationObservations);
+}
+
+TEST_CASE("Research configuration rejects values above the stable-frame limit") {
+    const TemporaryIni file{R"ini(
+[General]
+Enabled=true
+
+[Research]
+RadioStationMinimumStableFrames=601
+)ini"};
+
+    const auto result = saors::Configuration::load(file.path());
+
+    CHECK_FALSE(result.success);
+    REQUIRE(result.errors.size() == 1U);
+    CHECK(result.value.research.radioStationMinimumStableFrames == 15U);
 }

@@ -52,9 +52,16 @@ struct ExperimentalConfiguration {
     bool logRadioDecisions{true};
 };
 
+struct ResearchConfiguration {
+    bool enableRadioStationMapRecorder{false};
+    std::uint32_t radioStationMinimumStableFrames{15};
+    bool logRadioStationObservations{false};
+};
+
 struct ConfigurationData {
     GeneralConfiguration general;
     ExperimentalConfiguration experimental;
+    ResearchConfiguration research;
     std::map<std::string, StationConfiguration> stations;
 };
 
