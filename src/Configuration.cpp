@@ -277,6 +277,8 @@ void assignExperimentalValue(ConfigurationResult& result, const std::string& key
         experimental.logRadioDecisions = *parsed;
     } else if (normalizedKey == "enablegameplayaudioexecutor") {
         experimental.enableGameplayAudioExecutor = *parsed;
+    } else if (normalizedKey == "muteoriginalradioduringgameplayaudio") {
+        experimental.muteOriginalRadioDuringGameplayAudio = *parsed;
     } else {
         result.warnings.push_back("line " + std::to_string(lineNumber) +
                                   ": unknown Experimental key '" + key + "'");

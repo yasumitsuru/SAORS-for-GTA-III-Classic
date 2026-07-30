@@ -54,6 +54,7 @@ struct ExperimentalConfiguration {
     bool radioControllerDryRun{true};
     bool logRadioDecisions{true};
     bool enableGameplayAudioExecutor{false};
+    bool muteOriginalRadioDuringGameplayAudio{false};
 };
 
 struct ResearchConfiguration {

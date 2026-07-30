@@ -62,6 +62,7 @@ TEST_CASE("Default configuration is safe and enabled") {
     CHECK(configuration.experimental.radioControllerDryRun);
     CHECK(configuration.experimental.logRadioDecisions);
     CHECK_FALSE(configuration.experimental.enableGameplayAudioExecutor);
+    CHECK_FALSE(configuration.experimental.muteOriginalRadioDuringGameplayAudio);
     CHECK_FALSE(configuration.research.enableRadioStationMapRecorder);
     CHECK(configuration.research.radioStationMinimumStableFrames == 15U);
     CHECK_FALSE(configuration.research.logRadioStationObservations);
@@ -93,6 +94,7 @@ EnableRadioController=true
 RadioControllerDryRun=true
 LogRadioDecisions=false
 EnableGameplayAudioExecutor=true
+MuteOriginalRadioDuringGameplayAudio=true
 
 [Station.HeadRadio]
 Enabled=true
@@ -126,6 +128,7 @@ GameStationRaw=0
     CHECK(result.value.experimental.radioControllerDryRun);
     CHECK_FALSE(result.value.experimental.logRadioDecisions);
     CHECK(result.value.experimental.enableGameplayAudioExecutor);
+    CHECK(result.value.experimental.muteOriginalRadioDuringGameplayAudio);
 
     REQUIRE(result.value.stations.count("HeadRadio") == 1);
     const auto& station = result.value.stations.at("HeadRadio");
@@ -386,12 +389,14 @@ Enabled=true
 
 [Experimental]
 EnableGameplayAudioExecutor=true
+MuteOriginalRadioDuringGameplayAudio=true
 )ini"};
 
     const auto result = saors::Configuration::load(file.path());
 
     REQUIRE(result.success);
     CHECK(result.value.experimental.enableGameplayAudioExecutor);
+    CHECK(result.value.experimental.muteOriginalRadioDuringGameplayAudio);
 }
 
 TEST_CASE("Legacy INI files remain compatible without raw bindings") {

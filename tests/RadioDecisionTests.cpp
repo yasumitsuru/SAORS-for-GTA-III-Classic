@@ -3,6 +3,7 @@
 #include "saors_gta3/GameObserver.hpp"
 #include "saors_gta3/HttpClient.hpp"
 #include "saors_gta3/Logger.hpp"
+#include "saors_gta3/OriginalRadioController.hpp"
 #include "saors_gta3/PlaylistResolver.hpp"
 #include "saors_gta3/RadioActionSink.hpp"
 #include "saors_gta3/RadioController.hpp"
@@ -14,6 +15,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <filesystem>
@@ -101,6 +103,7 @@ class RecordingPlaybackBackend final : public saors::AudioBackend {
     bool open(const std::string& url) override {
         ++openCount;
         openedUrls.push_back(url);
+        record("backend.open");
         if (throwOpen) {
             throw std::runtime_error("synthetic open exception");
         }
@@ -115,6 +118,7 @@ class RecordingPlaybackBackend final : public saors::AudioBackend {
 
     bool play() override {
         ++playCount;
+        record("backend.play");
         if (failPlay) {
             error = "synthetic play failure";
             state_ = saors::AudioState::error;
@@ -126,6 +130,10 @@ class RecordingPlaybackBackend final : public saors::AudioBackend {
 
     bool pause() override {
         ++pauseCount;
+        record("backend.pause");
+        if (throwPause) {
+            throw std::runtime_error("synthetic pause exception");
+        }
         if (failPause) {
             error = "synthetic pause failure";
             state_ = saors::AudioState::error;
@@ -137,11 +145,13 @@ class RecordingPlaybackBackend final : public saors::AudioBackend {
 
     void stop() noexcept override {
         ++stopCount;
+        record("backend.stop");
         state_ = saors::AudioState::stopped;
     }
 
     bool setVolume(const float volume) override {
         ++setVolumeCount;
+        record("backend.volume");
         if (failVolume) {
             error = "synthetic volume failure";
             state_ = saors::AudioState::error;
@@ -153,6 +163,7 @@ class RecordingPlaybackBackend final : public saors::AudioBackend {
 
     bool setBufferMilliseconds(const std::uint32_t milliseconds) override {
         ++setBufferCount;
+        record("backend.buffer");
         lastBuffer = milliseconds;
         return milliseconds > 0;
     }
@@ -173,6 +184,7 @@ class RecordingPlaybackBackend final : public saors::AudioBackend {
     bool throwOpen{false};
     bool failPlay{false};
     bool failPause{false};
+    bool throwPause{false};
     bool failVolume{false};
     int openCount{0};
     int playCount{0};
@@ -184,9 +196,70 @@ class RecordingPlaybackBackend final : public saors::AudioBackend {
     std::uint32_t lastBuffer{0};
     std::vector<std::string> openedUrls;
     std::string error;
+    std::vector<std::string>* events{nullptr};
 
   private:
+    void record(const char* event) noexcept {
+        if (events != nullptr) {
+            try {
+                events->emplace_back(event);
+            } catch (...) {
+            }
+        }
+    }
+
     saors::AudioState state_{saors::AudioState::stopped};
+};
+
+class FakeOriginalRadioController final : public saors::OriginalRadioController {
+  public:
+    [[nodiscard]] bool available() const noexcept override {
+        return availableFlag;
+    }
+
+    bool mute() noexcept override {
+        ++muteCount;
+        record("original.mute");
+        if (failMute) {
+            mutedFlag = muteBeforeFailure;
+            return false;
+        }
+        mutedFlag = true;
+        return true;
+    }
+
+    bool restore() noexcept override {
+        ++restoreCount;
+        record("original.restore");
+        if (failRestore) {
+            return false;
+        }
+        mutedFlag = false;
+        return true;
+    }
+
+    [[nodiscard]] bool muted() const noexcept override {
+        return mutedFlag;
+    }
+
+    bool availableFlag{true};
+    bool mutedFlag{false};
+    bool failMute{false};
+    bool muteBeforeFailure{false};
+    bool failRestore{false};
+    int muteCount{0};
+    int restoreCount{0};
+    std::vector<std::string>* events{nullptr};
+
+  private:
+    void record(const char* event) noexcept {
+        if (events != nullptr) {
+            try {
+                events->emplace_back(event);
+            } catch (...) {
+            }
+        }
+    }
 };
 
 class FailingHttpClient final : public saors::HttpClient {
@@ -220,6 +293,36 @@ saors::RadioActionPlan playbackPlan(const saors::RadioActionKind action,
     plan.onlineAudioWouldBeActive = action != saors::RadioActionKind::wouldStop;
     return plan;
 }
+
+saors::GeneralConfiguration gameplayGeneralConfiguration() {
+    auto result = configuration().general;
+    result.resolveRemotePlaylists = false;
+    return result;
+}
+
+struct SuppressionFixture {
+    explicit SuppressionFixture(const bool suppressOriginalRadio = true)
+        : backend(std::make_unique<RecordingPlaybackBackend>()), recording(backend.get()),
+          streams(std::move(backend)), general(gameplayGeneralConfiguration()),
+          sink(streams, general, &originalRadio, suppressOriginalRadio) {
+        recording->events = &events;
+        originalRadio.events = &events;
+        first.enabled = true;
+        first.url = "https://one.example.invalid/live";
+        second.enabled = true;
+        second.url = "https://two.example.invalid/live";
+    }
+
+    std::vector<std::string> events;
+    std::unique_ptr<RecordingPlaybackBackend> backend;
+    RecordingPlaybackBackend* recording;
+    saors::StreamManager streams;
+    saors::GeneralConfiguration general;
+    FakeOriginalRadioController originalRadio;
+    saors::GameplayRadioActionSink sink;
+    saors::StationConfiguration first;
+    saors::StationConfiguration second;
+};
 
 class TemporaryLog {
   public:
@@ -831,6 +934,291 @@ TEST_CASE("Gameplay executor ignores out-of-order plans and stops during teardow
 
     CHECK(recording->stopCount >= 2);
     CHECK(streams.state() == saors::AudioState::stopped);
+}
+
+TEST_CASE("Original radio suppression policy requires every opt-in gate") {
+    FakeOriginalRadioController controller;
+    saors::OriginalRadioSuppressionPolicy policy{
+        true,
+        true,
+        true,
+        supportedProfile,
+    };
+
+    SECTION("all gates and an available mechanism allow integration") {
+        CHECK(saors::shouldEnableOriginalRadioSuppression(policy, controller));
+    }
+
+    SECTION("build gate absent") {
+        policy.buildEnabled = false;
+        CHECK_FALSE(saors::shouldEnableOriginalRadioSuppression(policy, controller));
+    }
+
+    SECTION("gameplay executor disabled") {
+        policy.gameplayExecutorEnabled = false;
+        CHECK_FALSE(saors::shouldEnableOriginalRadioSuppression(policy, controller));
+    }
+
+    SECTION("runtime opt-in disabled") {
+        policy.runtimeEnabled = false;
+        CHECK_FALSE(saors::shouldEnableOriginalRadioSuppression(policy, controller));
+    }
+
+    SECTION("unsupported profile") {
+        policy.executableProfile = saors::ExecutableProfileId::unsupported;
+        CHECK_FALSE(saors::shouldEnableOriginalRadioSuppression(policy, controller));
+    }
+
+    SECTION("candidate profile without validated suppression evidence") {
+        policy.executableProfile = saors::ExecutableProfileId::gta3_10_us_candidate;
+        CHECK_FALSE(saors::shouldEnableOriginalRadioSuppression(policy, controller));
+    }
+
+    SECTION("mechanism unavailable") {
+        controller.availableFlag = false;
+        CHECK_FALSE(saors::shouldEnableOriginalRadioSuppression(policy, controller));
+    }
+
+    CHECK(controller.muteCount == 0);
+    CHECK(controller.restoreCount == 0);
+}
+
+TEST_CASE("Null original radio controller is unavailable and performs no writes") {
+    saors::NullOriginalRadioController controller;
+
+    CHECK_FALSE(controller.available());
+    CHECK_FALSE(controller.mute());
+    CHECK(controller.restore());
+    CHECK(controller.restore());
+    CHECK_FALSE(controller.muted());
+
+    const auto runtime = saors::createOriginalRadioController(supportedProfile);
+    REQUIRE(runtime);
+    CHECK_FALSE(runtime->available());
+    CHECK_FALSE(runtime->muted());
+}
+
+TEST_CASE("Gameplay suppression is ordered, idempotent, and restored fail-safe") {
+    SECTION("successful stream start mutes only after playback starts") {
+        SuppressionFixture fixture;
+        fixture.sink.submit(
+            playbackPlan(saors::RadioActionKind::wouldStart, 1U, fixture.first));
+
+        REQUIRE(fixture.originalRadio.muteCount == 1);
+        REQUIRE(fixture.originalRadio.muted());
+        const auto played =
+            std::find(fixture.events.begin(), fixture.events.end(), "backend.play");
+        const auto muted =
+            std::find(fixture.events.begin(), fixture.events.end(), "original.mute");
+        REQUIRE(played != fixture.events.end());
+        REQUIRE(muted != fixture.events.end());
+        CHECK(played < muted);
+    }
+
+    SECTION("stream start failure never requests mute") {
+        SuppressionFixture fixture;
+        fixture.recording->failOpen = true;
+        fixture.sink.submit(
+            playbackPlan(saors::RadioActionKind::wouldStart, 1U, fixture.first));
+
+        CHECK(fixture.originalRadio.muteCount == 0);
+        CHECK(fixture.originalRadio.restoreCount == 0);
+        CHECK_FALSE(fixture.sink.simulatedState().active);
+    }
+
+    SECTION("partial mute failure restores immediately and stops the stream") {
+        SuppressionFixture fixture;
+        fixture.originalRadio.failMute = true;
+        fixture.originalRadio.muteBeforeFailure = true;
+        fixture.sink.submit(
+            playbackPlan(saors::RadioActionKind::wouldStart, 1U, fixture.first));
+
+        CHECK(fixture.originalRadio.muteCount == 1);
+        CHECK(fixture.originalRadio.restoreCount == 1);
+        CHECK_FALSE(fixture.originalRadio.muted());
+        CHECK(fixture.streams.state() == saors::AudioState::stopped);
+        CHECK_FALSE(fixture.sink.simulatedState().active);
+    }
+
+    SECTION("online station switch keeps mute without another write") {
+        SuppressionFixture fixture;
+        fixture.sink.submit(
+            playbackPlan(saors::RadioActionKind::wouldStart, 1U, fixture.first));
+        fixture.sink.submit(
+            playbackPlan(saors::RadioActionKind::wouldSwitch, 2U, fixture.second));
+
+        CHECK(fixture.originalRadio.muteCount == 1);
+        CHECK(fixture.originalRadio.restoreCount == 0);
+        CHECK(fixture.originalRadio.muted());
+        CHECK(fixture.sink.simulatedState().active);
+    }
+
+    SECTION("failed online switch restores the already muted radio") {
+        SuppressionFixture fixture;
+        fixture.sink.submit(
+            playbackPlan(saors::RadioActionKind::wouldStart, 1U, fixture.first));
+        fixture.recording->failOpen = true;
+        fixture.sink.submit(
+            playbackPlan(saors::RadioActionKind::wouldSwitch, 2U, fixture.second));
+
+        CHECK(fixture.originalRadio.muteCount == 1);
+        CHECK(fixture.originalRadio.restoreCount == 1);
+        CHECK_FALSE(fixture.originalRadio.muted());
+        CHECK_FALSE(fixture.sink.simulatedState().active);
+    }
+
+    SECTION("pause resume and volume changes keep mute without writes") {
+        SuppressionFixture fixture;
+        fixture.sink.submit(
+            playbackPlan(saors::RadioActionKind::wouldStart, 1U, fixture.first));
+        fixture.sink.submit(
+            playbackPlan(saors::RadioActionKind::wouldPause, 2U, fixture.first));
+        fixture.sink.submit(
+            playbackPlan(saors::RadioActionKind::wouldResume, 3U, fixture.first));
+        fixture.sink.submit(playbackPlan(saors::RadioActionKind::wouldSetVolume, 4U,
+                                         fixture.first, 0.25F));
+
+        CHECK(fixture.originalRadio.muteCount == 1);
+        CHECK(fixture.originalRadio.restoreCount == 0);
+        CHECK(fixture.originalRadio.muted());
+    }
+
+    SECTION("online to original stop restores") {
+        SuppressionFixture fixture;
+        fixture.sink.submit(
+            playbackPlan(saors::RadioActionKind::wouldStart, 1U, fixture.first));
+        fixture.sink.submit(
+            playbackPlan(saors::RadioActionKind::wouldStop, 2U, fixture.first));
+
+        CHECK(fixture.originalRadio.restoreCount == 1);
+        CHECK_FALSE(fixture.originalRadio.muted());
+        CHECK_FALSE(fixture.sink.simulatedState().active);
+    }
+
+    SECTION("player exit restores") {
+        SuppressionFixture fixture;
+        fixture.sink.submit(
+            playbackPlan(saors::RadioActionKind::wouldStart, 1U, fixture.first));
+        auto stop =
+            playbackPlan(saors::RadioActionKind::wouldStop, 2U, fixture.first);
+        stop.reason = saors::RadioDecisionReason::playerOnFoot;
+        fixture.sink.submit(stop);
+
+        CHECK(fixture.originalRadio.restoreCount == 1);
+        CHECK_FALSE(fixture.originalRadio.muted());
+    }
+
+    SECTION("game not ready restores") {
+        SuppressionFixture fixture;
+        fixture.sink.submit(
+            playbackPlan(saors::RadioActionKind::wouldStart, 1U, fixture.first));
+        auto stop =
+            playbackPlan(saors::RadioActionKind::wouldStop, 2U, fixture.first);
+        stop.reason = saors::RadioDecisionReason::gameNotReady;
+        fixture.sink.submit(stop);
+
+        CHECK(fixture.originalRadio.restoreCount == 1);
+        CHECK_FALSE(fixture.originalRadio.muted());
+    }
+
+    SECTION("unbound or disabled inactive plan restores") {
+        SuppressionFixture fixture;
+        fixture.sink.submit(
+            playbackPlan(saors::RadioActionKind::wouldStart, 1U, fixture.first));
+        auto inactive = playbackPlan(saors::RadioActionKind::none, 2U, fixture.first);
+        inactive.reason = saors::RadioDecisionReason::stationDisabled;
+        inactive.onlineAudioWouldBeActive = false;
+        fixture.sink.submit(inactive);
+
+        CHECK(fixture.originalRadio.restoreCount == 1);
+        CHECK_FALSE(fixture.originalRadio.muted());
+        CHECK(fixture.streams.state() == saors::AudioState::stopped);
+    }
+
+    SECTION("mechanism becoming unavailable restores and fails closed") {
+        SuppressionFixture fixture;
+        fixture.sink.submit(
+            playbackPlan(saors::RadioActionKind::wouldStart, 1U, fixture.first));
+        fixture.originalRadio.availableFlag = false;
+        auto unchanged = playbackPlan(saors::RadioActionKind::none, 2U, fixture.first);
+        unchanged.onlineAudioWouldBeActive = true;
+        fixture.sink.submit(unchanged);
+
+        CHECK(fixture.originalRadio.muteCount == 1);
+        CHECK(fixture.originalRadio.restoreCount == 1);
+        CHECK_FALSE(fixture.originalRadio.muted());
+        CHECK_FALSE(fixture.sink.simulatedState().active);
+    }
+
+    SECTION("backend failure after mute restores") {
+        SuppressionFixture fixture;
+        fixture.sink.submit(
+            playbackPlan(saors::RadioActionKind::wouldStart, 1U, fixture.first));
+        fixture.recording->failPause = true;
+        fixture.sink.submit(
+            playbackPlan(saors::RadioActionKind::wouldPause, 2U, fixture.first));
+
+        CHECK(fixture.originalRadio.restoreCount == 1);
+        CHECK_FALSE(fixture.originalRadio.muted());
+        CHECK(fixture.streams.state() == saors::AudioState::stopped);
+    }
+
+    SECTION("backend exception after mute restores") {
+        SuppressionFixture fixture;
+        fixture.sink.submit(
+            playbackPlan(saors::RadioActionKind::wouldStart, 1U, fixture.first));
+        fixture.recording->throwPause = true;
+        CHECK_NOTHROW(fixture.sink.submit(
+            playbackPlan(saors::RadioActionKind::wouldPause, 2U, fixture.first)));
+
+        CHECK(fixture.originalRadio.restoreCount == 1);
+        CHECK_FALSE(fixture.originalRadio.muted());
+        CHECK(fixture.streams.state() == saors::AudioState::stopped);
+    }
+
+    SECTION("explicit shutdown restores exactly once") {
+        SuppressionFixture fixture;
+        fixture.sink.submit(
+            playbackPlan(saors::RadioActionKind::wouldStart, 1U, fixture.first));
+        fixture.sink.shutdown();
+        fixture.sink.shutdown();
+
+        CHECK(fixture.originalRadio.restoreCount == 1);
+        CHECK_FALSE(fixture.originalRadio.muted());
+        CHECK(fixture.streams.state() == saors::AudioState::stopped);
+    }
+
+    SECTION("destruction outside loader lock restores") {
+        auto backend = std::make_unique<RecordingPlaybackBackend>();
+        saors::StreamManager streams(std::move(backend));
+        auto general = gameplayGeneralConfiguration();
+        FakeOriginalRadioController originalRadio;
+        saors::StationConfiguration station;
+        station.enabled = true;
+        station.url = "https://destruction.example.invalid/live";
+
+        {
+            saors::GameplayRadioActionSink sink(streams, general, &originalRadio, true);
+            sink.submit(playbackPlan(saors::RadioActionKind::wouldStart, 1U, station));
+            REQUIRE(originalRadio.muted());
+        }
+
+        CHECK(originalRadio.restoreCount == 1);
+        CHECK_FALSE(originalRadio.muted());
+        CHECK(streams.state() == saors::AudioState::stopped);
+    }
+
+    SECTION("suppression disabled preserves executor behavior without controller writes") {
+        SuppressionFixture fixture(false);
+        fixture.sink.submit(
+            playbackPlan(saors::RadioActionKind::wouldStart, 1U, fixture.first));
+        fixture.sink.submit(
+            playbackPlan(saors::RadioActionKind::wouldStop, 2U, fixture.first));
+
+        CHECK(fixture.originalRadio.muteCount == 0);
+        CHECK(fixture.originalRadio.restoreCount == 0);
+        CHECK_FALSE(fixture.originalRadio.muted());
+    }
 }
 
 TEST_CASE("Raw bindings take precedence and remain authoritative when disabled") {

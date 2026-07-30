@@ -2,6 +2,7 @@
 
 #include "saors_gta3/HttpUrl.hpp"
 #include "saors_gta3/Logger.hpp"
+#include "saors_gta3/OriginalRadioController.hpp"
 #include "saors_gta3/StreamManager.hpp"
 
 #include <iomanip>
@@ -150,11 +151,14 @@ void DryRunRadioActionSink::logPlan(const RadioActionPlan& plan) {
 }
 
 GameplayRadioActionSink::GameplayRadioActionSink(StreamManager& streams,
-                                                 const GeneralConfiguration& configuration)
-    : streams_(streams), configuration_(configuration) {}
+                                                 const GeneralConfiguration& configuration,
+                                                 OriginalRadioController* originalRadio,
+                                                 const bool suppressOriginalRadio)
+    : streams_(streams), configuration_(configuration), originalRadio_(originalRadio),
+      suppressOriginalRadio_(suppressOriginalRadio && originalRadio != nullptr) {}
 
 GameplayRadioActionSink::~GameplayRadioActionSink() {
-    streams_.stop();
+    shutdown();
 }
 
 void GameplayRadioActionSink::submit(const RadioActionPlan& plan) noexcept {
@@ -170,6 +174,12 @@ void GameplayRadioActionSink::submit(const RadioActionPlan& plan) noexcept {
             applyRadioActionPlan(stopPlan, state_);
             return;
         }
+        if (originalRadioMuted_ &&
+            (originalRadio_ == nullptr || !originalRadio_->available() ||
+             !originalRadio_->muted())) {
+            failClosed(plan, "original radio suppression unavailable");
+            return;
+        }
 
         bool executionSucceeded = true;
         const char* failure = "execution failed";
@@ -178,6 +188,14 @@ void GameplayRadioActionSink::submit(const RadioActionPlan& plan) noexcept {
         case RadioActionKind::wouldSwitch:
             executionSucceeded = startSelectedStation(plan);
             failure = "station start failed";
+            if (executionSucceeded) {
+                executionSucceeded = muteOriginalRadio();
+                failure = "original radio suppression failed";
+            }
+            if (executionSucceeded) {
+                logAction(plan,
+                          plan.action == RadioActionKind::wouldSwitch ? "switched" : "started");
+            }
             break;
         case RadioActionKind::wouldPause:
             if (!streams_.pause()) {
@@ -205,11 +223,22 @@ void GameplayRadioActionSink::submit(const RadioActionPlan& plan) noexcept {
             break;
         case RadioActionKind::wouldStop:
             streams_.stop();
-            logAction(plan, "stopped");
+            if (!restoreOriginalRadio()) {
+                failedClosed_ = true;
+                logSuppressionFailure();
+                logFailure("original radio restoration failed");
+            } else {
+                logAction(plan, "stopped");
+            }
             break;
         case RadioActionKind::none:
             if (!plan.onlineAudioWouldBeActive) {
                 streams_.stop();
+                if (!restoreOriginalRadio()) {
+                    failedClosed_ = true;
+                    logSuppressionFailure();
+                    logFailure("original radio restoration failed");
+                }
             }
             break;
         }
@@ -225,6 +254,10 @@ void GameplayRadioActionSink::submit(const RadioActionPlan& plan) noexcept {
             failClosed(plan, "execution failed");
         } catch (...) {
             streams_.stop();
+            if (suppressOriginalRadio_) {
+                static_cast<void>(restoreOriginalRadio());
+                logSuppressionFailure();
+            }
         }
     }
 }
@@ -235,6 +268,22 @@ SimulatedRadioState GameplayRadioActionSink::simulatedState() const noexcept {
         return state_;
     } catch (...) {
         return {};
+    }
+}
+
+void GameplayRadioActionSink::shutdown() noexcept {
+    try {
+        const std::lock_guard<std::mutex> lock(mutex_);
+        streams_.stop();
+        if (!restoreOriginalRadio()) {
+            logSuppressionFailure();
+        }
+    } catch (...) {
+        streams_.stop();
+        if (suppressOriginalRadio_) {
+            static_cast<void>(restoreOriginalRadio());
+            logSuppressionFailure();
+        }
     }
 }
 
@@ -267,19 +316,73 @@ bool GameplayRadioActionSink::startSelectedStation(const RadioActionPlan& plan) 
         return false;
     }
 
-    logAction(plan, plan.action == RadioActionKind::wouldSwitch ? "switched" : "started");
+    return true;
+}
+
+bool GameplayRadioActionSink::muteOriginalRadio() noexcept {
+    if (!suppressOriginalRadio_) {
+        return true;
+    }
+    if (originalRadio_ == nullptr || !originalRadio_->available()) {
+        return false;
+    }
+    if (originalRadioMuted_) {
+        return originalRadio_->muted();
+    }
+
+    originalRadioMuteAttempted_ = true;
+    if (!originalRadio_->mute() || !originalRadio_->muted()) {
+        return false;
+    }
+    originalRadioMuted_ = true;
+    Logger::info("Original radio: muted");
+    return true;
+}
+
+bool GameplayRadioActionSink::restoreOriginalRadio() noexcept {
+    if (!suppressOriginalRadio_ || originalRadio_ == nullptr) {
+        return true;
+    }
+
+    const bool requiresRestore =
+        originalRadioMuteAttempted_ || originalRadioMuted_ || originalRadio_->muted();
+    if (!requiresRestore) {
+        return true;
+    }
+
+    if (!originalRadio_->restore() || originalRadio_->muted()) {
+        return false;
+    }
+    originalRadioMuteAttempted_ = false;
+    originalRadioMuted_ = false;
+    Logger::info("Original radio: restored");
     return true;
 }
 
 void GameplayRadioActionSink::failClosed(const RadioActionPlan& plan,
                                          const char* action) noexcept {
+    const bool suppressionAffected =
+        suppressOriginalRadio_ &&
+        (originalRadioMuteAttempted_ || originalRadioMuted_ ||
+         (originalRadio_ != nullptr && originalRadio_->muted()));
     streams_.stop();
+    static_cast<void>(restoreOriginalRadio());
     failedClosed_ = true;
     auto stopPlan = plan;
     stopPlan.action = RadioActionKind::wouldStop;
     stopPlan.onlineAudioWouldBeActive = false;
     applyRadioActionPlan(stopPlan, state_);
+    if (suppressionAffected) {
+        logSuppressionFailure();
+    }
     logFailure(action);
+}
+
+void GameplayRadioActionSink::logSuppressionFailure() noexcept {
+    try {
+        Logger::warning("Original radio suppression: failed closed");
+    } catch (...) {
+    }
 }
 
 void GameplayRadioActionSink::logAction(const RadioActionPlan& plan, const char* action) noexcept {

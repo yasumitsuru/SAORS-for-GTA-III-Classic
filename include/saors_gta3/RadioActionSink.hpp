@@ -10,6 +10,7 @@
 
 namespace saors {
 
+class OriginalRadioController;
 class StreamManager;
 
 class RadioActionSink {
@@ -54,23 +55,33 @@ class DryRunRadioActionSink final : public RadioActionSink {
 
 class GameplayRadioActionSink final : public RadioActionSink {
   public:
-    GameplayRadioActionSink(StreamManager& streams, const GeneralConfiguration& configuration);
+    GameplayRadioActionSink(StreamManager& streams, const GeneralConfiguration& configuration,
+                            OriginalRadioController* originalRadio = nullptr,
+                            bool suppressOriginalRadio = false);
     ~GameplayRadioActionSink() override;
 
     void submit(const RadioActionPlan& plan) noexcept override;
     [[nodiscard]] SimulatedRadioState simulatedState() const noexcept override;
+    void shutdown() noexcept;
 
   private:
     [[nodiscard]] bool startSelectedStation(const RadioActionPlan& plan);
+    [[nodiscard]] bool muteOriginalRadio() noexcept;
+    [[nodiscard]] bool restoreOriginalRadio() noexcept;
     void failClosed(const RadioActionPlan& plan, const char* action) noexcept;
+    void logSuppressionFailure() noexcept;
     void logAction(const RadioActionPlan& plan, const char* action) noexcept;
     void logFailure(const char* action) noexcept;
 
     StreamManager& streams_;
     GeneralConfiguration configuration_;
+    OriginalRadioController* originalRadio_{nullptr};
     mutable std::mutex mutex_;
     SimulatedRadioState state_;
     bool failedClosed_{false};
+    bool suppressOriginalRadio_{false};
+    bool originalRadioMuteAttempted_{false};
+    bool originalRadioMuted_{false};
 };
 
 } // namespace saors

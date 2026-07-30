@@ -32,7 +32,7 @@ Linux game plugin.
 | GTA III state observer | Experimental MSVC x86 callback; exact fingerprint, expected bytes, dry-run, and rollback required |
 | Snapshot-driven radio decisions | Implemented as an opt-in dry-run with sanitized plans and simulated state |
 | Radio station raw mapping research | Recorder, versioned local evidence schema, portable validator, no automatic runtime map |
-| GTA III radio replacement | Opt-in MVP: real external stream playback for explicitly bound stations; original radio remains intact and audible |
+| GTA III radio replacement | Opt-in external stream MVP; suppression lifecycle is implemented behind two gates, but no production write mechanism is validated |
 | Optional libVLC backend | Implemented; Windows x86 build, offline lifecycle, localhost, and authorized AAC/HTTP runtime tested |
 | Standalone stream probe | Implemented; real AAC audio, controls, and shutdown manually validated |
 | AAC over HTTP playback | Manually validated with an authorized stream |
@@ -41,7 +41,9 @@ Linux game plugin.
 | HLS | Detected and explicitly unsupported |
 | SteamOS/Proton runtime validation | Planned |
 
-No part of the current code mutes or replaces the original game radio.
+No production code currently mutes the original game radio. The suppression
+interface fails closed through a null controller until a temporary, radio-only,
+reversible write mechanism is independently validated for an exact profile.
 
 ## Scope and compatibility
 
@@ -74,6 +76,9 @@ plugin-sdk `GAME_10EN` map is not an edition or region identification.
 6. `RadioController` submits sanitized `would-*` plans to a dry-run sink by
    default. A separately compiled and explicitly enabled MVP sink can execute
    the station already selected by the engine through `StreamManager`.
+   A second build and INI gate may request original-radio suppression, but the
+   production controller is intentionally unavailable until the write and exact
+   restoration semantics are proven.
 7. An opt-in `RadioStationObservationRecorder` records stable raw transitions only;
    it never names stations or starts network/audio work.
 8. `saors_radio_map_tool` validates and compares sanitized local evidence. The
@@ -201,6 +206,7 @@ EnableRadioController=false
 RadioControllerDryRun=true
 LogRadioDecisions=true
 EnableGameplayAudioExecutor=false
+MuteOriginalRadioDuringGameplayAudio=false
 
 [Station.HeadRadio]
 Enabled=true
@@ -269,8 +275,11 @@ and no audio, network, playlist, game-memory, or original-radio operation occurs
   the `0..127` menu preference, not effective audible output.
 - The default radio-controller path produces plans and simulated state only. The
   separately gated gameplay MVP uses `StreamManager`, playlist resolution, and
-  libVLC only after explicit build and INI opt-in; it never writes game state or
-  suppresses/restores the original radio.
+  libVLC only after explicit build and INI opt-in.
+- Original-radio suppression has an additional build gate and runtime opt-in,
+  both disabled by default. Its lifecycle and fail-safe restoration are covered
+  with a fake controller, but the production factory returns an unavailable null
+  controller and performs no game write.
 - Manual ASI unload is unsupported; the observer stays resident until normal
   process exit.
 - Proton/Wine installation has documentation but no verified compatibility result.
@@ -283,7 +292,8 @@ and no audio, network, playlist, game-memory, or original-radio operation occurs
   establish evidence for the GTA III 1.0 US research target.
 - Independently confirm the raw station map without starting online audio.
 - Independently reproduce the local address map before widening support.
-- Add guarded radio suppression/restoration only in a later authorized phase.
+- Validate a temporary radio-only mixer mechanism, exact entry bytes, and
+  restoration semantics before enabling any production suppression write.
 - Validate Windows 10, Windows 11, Wine, and Proton.
 - Add more executable adapters only after independent verification.
 

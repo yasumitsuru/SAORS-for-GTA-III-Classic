@@ -76,3 +76,22 @@ The observed raw radio sequence does not yet justify a public enum-to-station-na
 mapping. The volume field is the menu preference, not effective mixer output.
 Manual ASI unload safety is also not claimed; the observer remains resident until
 normal process termination.
+## Original-radio suppression audit
+
+The pinned `cDMAudio` header exposes `SetMusicFadeVol` and
+`SetMusicMasterVolume`, and its source associates them with `GAME_10EN`
+addresses. That is not sufficient evidence for a production write:
+
+- neither entry point has an exact-profile expected-byte window in this project;
+- the API names do not prove that only in-vehicle radio is affected;
+- no reviewed source proves how to capture the effective pre-mute mixer state;
+- restoring the menu preference is not proven equivalent to restoring the
+  transient mixer state;
+- no local offline evidence proves that either call is temporary and
+  nonpersistent.
+
+The existing `m_nPrefsMusicVolume` evidence remains read-only and represents a
+menu preference, not effective mixer output. Consequently,
+`createOriginalRadioController()` returns an unavailable null controller for
+every profile. No address, offset, signature, or call target is added for
+suppression. See [Original radio suppression](ORIGINAL_RADIO_SUPPRESSION.md).
