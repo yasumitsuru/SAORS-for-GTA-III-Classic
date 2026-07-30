@@ -61,6 +61,7 @@ TEST_CASE("Default configuration is safe and enabled") {
     CHECK_FALSE(configuration.experimental.enableRadioController);
     CHECK(configuration.experimental.radioControllerDryRun);
     CHECK(configuration.experimental.logRadioDecisions);
+    CHECK_FALSE(configuration.experimental.enableGameplayAudioExecutor);
     CHECK_FALSE(configuration.research.enableRadioStationMapRecorder);
     CHECK(configuration.research.radioStationMinimumStableFrames == 15U);
     CHECK_FALSE(configuration.research.logRadioStationObservations);
@@ -91,6 +92,7 @@ LogStateTransitions=false
 EnableRadioController=true
 RadioControllerDryRun=true
 LogRadioDecisions=false
+EnableGameplayAudioExecutor=true
 
 [Station.HeadRadio]
 Enabled=true
@@ -123,6 +125,7 @@ GameStationRaw=0
     CHECK(result.value.experimental.enableRadioController);
     CHECK(result.value.experimental.radioControllerDryRun);
     CHECK_FALSE(result.value.experimental.logRadioDecisions);
+    CHECK(result.value.experimental.enableGameplayAudioExecutor);
 
     REQUIRE(result.value.stations.count("HeadRadio") == 1);
     const auto& station = result.value.stations.at("HeadRadio");
@@ -374,6 +377,21 @@ LogRadioDecisions=true
     CHECK(result.value.experimental.logRadioDecisions);
     REQUIRE_FALSE(result.warnings.empty());
     CHECK(result.warnings.front().find("remains enabled") != std::string::npos);
+}
+
+TEST_CASE("Gameplay audio executor remains an explicit opt-in") {
+    const TemporaryIni file{R"ini(
+[General]
+Enabled=true
+
+[Experimental]
+EnableGameplayAudioExecutor=true
+)ini"};
+
+    const auto result = saors::Configuration::load(file.path());
+
+    REQUIRE(result.success);
+    CHECK(result.value.experimental.enableGameplayAudioExecutor);
 }
 
 TEST_CASE("Legacy INI files remain compatible without raw bindings") {

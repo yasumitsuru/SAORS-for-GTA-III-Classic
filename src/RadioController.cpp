@@ -16,9 +16,9 @@ void RadioController::update(const GameStateSnapshot& snapshot) noexcept {
         {
             const std::lock_guard<std::mutex> lock(stateMutex_);
             plan = engine_.evaluate(snapshot, configuration_, executableProfile_, resolver_, state_);
-            applyRadioActionPlan(plan, state_);
+            sink_.submit(plan);
+            state_ = sink_.simulatedState();
         }
-        sink_.submit(plan);
         const std::lock_guard<std::mutex> lock(planMutex_);
         lastPlan_ = std::move(plan);
     } catch (...) {

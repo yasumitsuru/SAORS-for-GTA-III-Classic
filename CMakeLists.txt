@@ -36,6 +36,11 @@ option(
     "Enable snapshot-driven radio decisions without a gameplay audio executor"
     OFF
 )
+option(
+    SAORS_ENABLE_GAMEPLAY_STREAM_EXECUTOR
+    "Enable the opt-in gameplay stream executor backed by libVLC and WinHTTP"
+    OFF
+)
 set(SAORS_LIBVLC_ROOT "" CACHE PATH "Root of an externally supplied libVLC SDK/runtime")
 set(SAORS_PLUGIN_SDK_ROOT "" CACHE PATH "Root of an external plugin-sdk checkout")
 set(SAORS_TEST_STREAM_URL "" CACHE STRING "Private URL for opt-in network tests")
@@ -305,11 +310,41 @@ if(SAORS_ENABLE_RADIO_CONTROLLER_DRY_RUN)
     set(SAORS_HAS_RADIO_CONTROLLER_DRY_RUN 1)
 endif()
 
+set(SAORS_HAS_GAMEPLAY_STREAM_EXECUTOR 0)
+if(SAORS_ENABLE_GAMEPLAY_STREAM_EXECUTOR)
+    if(NOT SAORS_ENABLE_RADIO_CONTROLLER_DRY_RUN)
+        message(
+            FATAL_ERROR
+            "SAORS_ENABLE_GAMEPLAY_STREAM_EXECUTOR requires SAORS_ENABLE_RADIO_CONTROLLER_DRY_RUN=ON."
+        )
+    endif()
+    if(NOT SAORS_ENABLE_EXPERIMENTAL_GAME_OBSERVER)
+        message(
+            FATAL_ERROR
+            "SAORS_ENABLE_GAMEPLAY_STREAM_EXECUTOR requires SAORS_ENABLE_EXPERIMENTAL_GAME_OBSERVER=ON."
+        )
+    endif()
+    if(NOT SAORS_ENABLE_LIBVLC)
+        message(
+            FATAL_ERROR
+            "SAORS_ENABLE_GAMEPLAY_STREAM_EXECUTOR requires SAORS_ENABLE_LIBVLC=ON."
+        )
+    endif()
+    if(NOT SAORS_ENABLE_WINHTTP)
+        message(
+            FATAL_ERROR
+            "SAORS_ENABLE_GAMEPLAY_STREAM_EXECUTOR requires SAORS_ENABLE_WINHTTP=ON."
+        )
+    endif()
+    set(SAORS_HAS_GAMEPLAY_STREAM_EXECUTOR 1)
+endif()
+
 target_compile_definitions(
     saors_core
     PUBLIC
         SAORS_HAS_EXECUTABLE_FINGERPRINTING=${SAORS_HAS_EXECUTABLE_FINGERPRINTING}
         SAORS_HAS_EXPERIMENTAL_GAME_OBSERVER=${SAORS_HAS_EXPERIMENTAL_GAME_OBSERVER}
+        SAORS_HAS_GAMEPLAY_STREAM_EXECUTOR=${SAORS_HAS_GAMEPLAY_STREAM_EXECUTOR}
         SAORS_HAS_RADIO_CONTROLLER_DRY_RUN=${SAORS_HAS_RADIO_CONTROLLER_DRY_RUN}
         SAORS_HAS_LIBVLC=${SAORS_HAS_LIBVLC}
         SAORS_HAS_WINHTTP=${SAORS_HAS_WINHTTP}

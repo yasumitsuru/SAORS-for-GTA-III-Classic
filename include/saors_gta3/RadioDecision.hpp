@@ -1,6 +1,6 @@
 #pragma once
 
-#include "saors_gta3/RadioStationEvidence.hpp"
+#include "saors_gta3/Configuration.hpp"
 
 #include <cstdint>
 #include <optional>
@@ -56,6 +56,7 @@ struct RadioActionPlan {
     std::optional<RadioStationIdentity> stationIdentity;
     std::optional<std::string> stationKey;
     std::optional<float> preferenceVolume;
+    std::optional<StationConfiguration> selectedStation;
     bool onlineAudioWouldBeActive{false};
 };
 

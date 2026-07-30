@@ -186,6 +186,7 @@ RadioDecisionEngine::evaluate(const GameStateSnapshot& snapshot,
         plan.stationIdentity = stationIdentity;
         plan.stationKey = publicStationKey;
         plan.preferenceVolume = preferenceVolume;
+        plan.selectedStation = binding->second;
         if (*snapshot.pauseMenuActive) {
             plan.reason = RadioDecisionReason::paused;
             if (previousState.active && !previousState.paused && sameStation) {

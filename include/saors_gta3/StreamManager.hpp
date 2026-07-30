@@ -22,6 +22,7 @@ class StreamManager {
     bool pause();
     bool resume();
     void stop() noexcept;
+    bool setVolume(float volume);
     bool reconnect();
     bool setBufferMilliseconds(std::uint32_t milliseconds);
 

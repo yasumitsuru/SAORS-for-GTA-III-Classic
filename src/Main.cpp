@@ -1,18 +1,27 @@
+#include "saors_gta3/AudioBackendFactory.hpp"
 #include "saors_gta3/Configuration.hpp"
 #include "saors_gta3/ExecutableFingerprint.hpp"
 #include "saors_gta3/FileHasher.hpp"
 #include "saors_gta3/GameIntegration.hpp"
 #include "saors_gta3/Logger.hpp"
 #include "saors_gta3/PeImageReader.hpp"
+#include "saors_gta3/PlaylistResolver.hpp"
 #include "saors_gta3/RadioActionSink.hpp"
 #include "saors_gta3/RadioController.hpp"
 #include "saors_gta3/RadioStationObservationRecorder.hpp"
 #include "saors_gta3/RadioStationResolver.hpp"
+#include "saors_gta3/StreamManager.hpp"
+
+#if SAORS_HAS_WINHTTP
+#include "saors_gta3/WinHttpClient.hpp"
+#endif
 
 #include <windows.h>
 
 #include <filesystem>
+#include <memory>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -64,6 +73,19 @@ class SnapshotListenerMultiplexer final : public saors::GameStateSnapshotListene
     saors::GameStateSnapshotListener* controller_{nullptr};
     bool logObservations_{false};
 };
+
+struct GameplayRuntime {
+    std::unique_ptr<saors::StreamManager> streams;
+    std::unique_ptr<saors::RadioActionSink> sink;
+    std::unique_ptr<saors::RadioController> controller;
+};
+
+std::vector<std::unique_ptr<GameplayRuntime>>& gameplayRuntimes() {
+    // ASI unload is unsupported. Keep backend teardown out of the loader lock;
+    // the operating system releases this process-lifetime registry on exit.
+    static auto* runtimes = new std::vector<std::unique_ptr<GameplayRuntime>>;
+    return *runtimes;
+}
 
 DWORD WINAPI initializePlugin(const LPVOID parameter) {
     try {
@@ -153,14 +175,49 @@ DWORD WINAPI initializePlugin(const LPVOID parameter) {
 
 #if SAORS_HAS_RADIO_CONTROLLER_DRY_RUN
         if (runtimeConfiguration.experimental.enableRadioController) {
-            auto* sink = new saors::DryRunRadioActionSink(
-                runtimeConfiguration.experimental.logRadioDecisions);
-            auto* controller = new saors::RadioController(
+            auto runtime = std::make_unique<GameplayRuntime>();
+            bool gameplayExecutorEnabled = false;
+#if SAORS_HAS_GAMEPLAY_STREAM_EXECUTOR
+            if (runtimeConfiguration.experimental.enableGameplayAudioExecutor) {
+                auto backend = saors::createConfiguredAudioBackend();
+                const bool backendAvailable = std::string(backend->name()) != "null";
+                if (!backendAvailable) {
+                    saors::Logger::warning(
+                        "Gameplay audio executor: disabled because the playback backend is unavailable");
+                } else {
+#if SAORS_HAS_WINHTTP
+                    auto httpClient = std::make_shared<saors::WinHttpClient>();
+                    auto resolver = std::make_shared<saors::PlaylistResolver>(std::move(httpClient));
+                    runtime->streams = std::make_unique<saors::StreamManager>(
+                        std::move(backend), std::move(resolver));
+#else
+                    runtime->streams = std::make_unique<saors::StreamManager>(std::move(backend));
+#endif
+                    runtime->sink = std::make_unique<saors::GameplayRadioActionSink>(
+                        *runtime->streams, runtimeConfiguration.general);
+                    gameplayExecutorEnabled = true;
+                    saors::Logger::info(std::string("Gameplay audio executor: enabled; backend=") +
+                                        runtime->streams->backendName());
+                }
+            }
+#endif
+            if (!runtime->sink) {
+                runtime->sink = std::make_unique<saors::DryRunRadioActionSink>(
+                    runtimeConfiguration.experimental.logRadioDecisions);
+#if !SAORS_HAS_GAMEPLAY_STREAM_EXECUTOR
+                if (runtimeConfiguration.experimental.enableGameplayAudioExecutor) {
+                    saors::Logger::warning("Gameplay audio executor: unavailable in this build");
+                }
+#endif
+            }
+            runtime->controller = std::make_unique<saors::RadioController>(
                 runtimeConfiguration, game->detectedExecutableProfile(),
-                saors::defaultRadioStationResolver(), *sink);
-            listener->setController(controller);
+                saors::defaultRadioStationResolver(), *runtime->sink);
+            listener->setController(runtime->controller.get());
             game->setSnapshotListener(listener);
-            saors::Logger::info("Radio controller: dry-run");
+            gameplayRuntimes().push_back(std::move(runtime));
+            saors::Logger::info(gameplayExecutorEnabled ? "Radio controller: gameplay audio"
+                                                        : "Radio controller: dry-run");
         } else {
             saors::Logger::info("Radio controller: disabled");
             game->setSnapshotListener(listener);
@@ -182,7 +239,9 @@ DWORD WINAPI initializePlugin(const LPVOID parameter) {
                             (observerResult.status == saors::ObserverInstallStatus::installed
                                  ? "read-only observer active"
                                  : "disabled"));
-        saors::Logger::info("Gameplay audio executor: unavailable");
+        if (!runtimeConfiguration.experimental.enableRadioController) {
+            saors::Logger::info("Gameplay audio executor: disabled");
+        }
         saors::Logger::info("Audio playback: not started");
         saors::Logger::info("Network activity: not started");
         saors::Logger::info("Original radio: untouched");
