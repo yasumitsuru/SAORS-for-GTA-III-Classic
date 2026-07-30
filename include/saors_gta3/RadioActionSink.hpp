@@ -1,5 +1,6 @@
 #pragma once
 
+#include "saors_gta3/Configuration.hpp"
 #include "saors_gta3/RadioDecision.hpp"
 
 #include <chrono>
@@ -8,6 +9,8 @@
 #include <optional>
 
 namespace saors {
+
+class StreamManager;
 
 class RadioActionSink {
   public:
@@ -47,6 +50,27 @@ class DryRunRadioActionSink final : public RadioActionSink {
     std::chrono::milliseconds minimumLogInterval_;
     std::size_t loggedMessages_{0};
     bool logDecisions_{false};
+};
+
+class GameplayRadioActionSink final : public RadioActionSink {
+  public:
+    GameplayRadioActionSink(StreamManager& streams, const GeneralConfiguration& configuration);
+    ~GameplayRadioActionSink() override;
+
+    void submit(const RadioActionPlan& plan) noexcept override;
+    [[nodiscard]] SimulatedRadioState simulatedState() const noexcept override;
+
+  private:
+    [[nodiscard]] bool startSelectedStation(const RadioActionPlan& plan);
+    void failClosed(const RadioActionPlan& plan, const char* action) noexcept;
+    void logAction(const RadioActionPlan& plan, const char* action) noexcept;
+    void logFailure(const char* action) noexcept;
+
+    StreamManager& streams_;
+    GeneralConfiguration configuration_;
+    mutable std::mutex mutex_;
+    SimulatedRadioState state_;
+    bool failedClosed_{false};
 };
 
 } // namespace saors

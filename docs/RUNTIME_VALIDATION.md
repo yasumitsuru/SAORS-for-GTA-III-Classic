@@ -223,6 +223,30 @@ only by a matched status; no expected byte sequence was logged. The raw log was
 not published. The temporary ASI, INI, and log were removed after the sanitized
 summary was collected, and the game directory returned to its prior state.
 
+## Gameplay stream MVP manual smoke
+
+On 2026-07-29, a manually controlled run used the exact
+`gta3_classic_local_candidate` profile. The sanitized runtime evidence reported
+that libVLC was selected, the gameplay audio executor was enabled, the observer
+was installed, and its expected-byte validation matched.
+
+The local configuration explicitly bound raw value `0` to `HeadRadio`. Selecting
+raw `0` started that configured online stream. Opening the pause menu paused the
+online stream. The original GTA III radio remained audible throughout this
+observed run; original-radio suppression was not implemented.
+
+With `VolumeMultiplier=0.5`, the online stream was human-perceived as louder
+than the original radio. Until original-radio suppression and its mixer behavior
+are validated separately, the temporary manual recommendation is:
+
+```ini
+VolumeMultiplier=0.25
+```
+
+This run did not validate resume after pause, switching between online streams,
+stopping after leaving the vehicle, restoration of original-radio state, or game
+shutdown behavior. No claim is made for those paths.
+
 ## Current matrix
 
 | Capability | Result |
@@ -250,9 +274,10 @@ summary was collected, and the game directory returned to its prior state.
 | GTA III raw radio observation | values `0..9` and `11`; names and radio-off mapping unverified |
 | GTA III music preference | normalized dry-run change to `0.18` observed; effective output not claimed |
 | GTA III radio controller dry-run | start, pause, resume, volume, unbound-stop, and on-foot-stop passed |
+| GTA III gameplay stream executor | manual raw `0` / `HeadRadio` start and pause passed; resume, switch, stop, restoration, and shutdown pending |
 | GTA III observer network/audio isolation | zero SAORS connections and no online audio |
-| GTA III in-game audible validation | not executed by the automation |
-| GTA III original radio | remained intact during the observer smoke |
+| GTA III in-game audible validation | manual online stream and original-radio audibility confirmed; not executed by the automation |
+| GTA III original radio | remained intact and audible during the gameplay stream MVP smoke |
 
 ### Radio station research
 

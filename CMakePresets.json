@@ -24,7 +24,8 @@
         "SAORS_ENABLE_PLUGIN_SDK": "OFF",
         "SAORS_FETCH_PLUGIN_SDK": "OFF",
         "SAORS_ENABLE_EXPERIMENTAL_GAME_OBSERVER": "OFF",
-        "SAORS_ENABLE_RADIO_CONTROLLER_DRY_RUN": "OFF"
+        "SAORS_ENABLE_RADIO_CONTROLLER_DRY_RUN": "OFF",
+        "SAORS_ENABLE_GAMEPLAY_STREAM_EXECUTOR": "OFF"
       },
       "condition": {
         "type": "equals",
@@ -54,7 +55,8 @@
         "SAORS_ENABLE_PLUGIN_SDK": "OFF",
         "SAORS_FETCH_PLUGIN_SDK": "OFF",
         "SAORS_ENABLE_EXPERIMENTAL_GAME_OBSERVER": "OFF",
-        "SAORS_ENABLE_RADIO_CONTROLLER_DRY_RUN": "OFF"
+        "SAORS_ENABLE_RADIO_CONTROLLER_DRY_RUN": "OFF",
+        "SAORS_ENABLE_GAMEPLAY_STREAM_EXECUTOR": "OFF"
       },
       "condition": {
         "type": "equals",

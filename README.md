@@ -7,8 +7,9 @@ classic 32-bit Windows release of Grand Theft Auto III.
 > This project is in an experimental integration milestone. Configuration,
 > playlist parsing, logging, defensive executable fingerprinting, optional
 > libVLC, standalone probes, a guarded read-only game-state observer, and a
-> calculation-only radio controller exist. Both gameplay features are disabled
-> by default and never start online audio.
+> calculation-only radio controller, and a separately gated gameplay-stream MVP
+> exist. All gameplay features are disabled by default; real playback additionally
+> requires an explicit libVLC-enabled build and INI opt-in.
 
 The final plugin is a Windows x86 DLL named `SAORSForGTA3.asi`. SteamOS support
 means running that same Windows build through Proton/Wine; this is not a native
@@ -31,7 +32,7 @@ Linux game plugin.
 | GTA III state observer | Experimental MSVC x86 callback; exact fingerprint, expected bytes, dry-run, and rollback required |
 | Snapshot-driven radio decisions | Implemented as an opt-in dry-run with sanitized plans and simulated state |
 | Radio station raw mapping research | Recorder, versioned local evidence schema, portable validator, no automatic runtime map |
-| GTA III radio replacement | Not implemented; original radio remains intact |
+| GTA III radio replacement | Opt-in MVP: real external stream playback for explicitly bound stations; original radio remains intact and audible |
 | Optional libVLC backend | Implemented; Windows x86 build, offline lifecycle, localhost, and authorized AAC/HTTP runtime tested |
 | Standalone stream probe | Implemented; real AAC audio, controls, and shutdown manually validated |
 | AAC over HTTP playback | Manually validated with an authorized stream |
@@ -70,8 +71,9 @@ plugin-sdk `GAME_10EN` map is not an edition or region identification.
 4. An optional guarded adapter observes vehicle, pause, raw station, and music
    preference through a consistent read-only snapshot.
 5. An optional listener sends each snapshot to a pure `RadioDecisionEngine`.
-6. `RadioController` submits sanitized `would-*` plans to a dry-run sink that
-   updates simulated state only.
+6. `RadioController` submits sanitized `would-*` plans to a dry-run sink by
+   default. A separately compiled and explicitly enabled MVP sink can execute
+   the station already selected by the engine through `StreamManager`.
 7. An opt-in `RadioStationObservationRecorder` records stable raw transitions only;
    it never names stations or starts network/audio work.
 8. `saors_radio_map_tool` validates and compares sanitized local evidence. The
@@ -198,6 +200,7 @@ LogStateTransitions=true
 EnableRadioController=false
 RadioControllerDryRun=true
 LogRadioDecisions=true
+EnableGameplayAudioExecutor=false
 
 [Station.HeadRadio]
 Enabled=true
@@ -264,8 +267,10 @@ and no audio, network, playlist, game-memory, or original-radio operation occurs
   the ASI. Fetching is disabled by default.
 - Raw station values have no public name mapping. Normalized volume represents
   the `0..127` menu preference, not effective audible output.
-- The radio controller produces plans and simulated state only. It has no
-  `StreamManager`, network, libVLC, mixer, or game-write executor.
+- The default radio-controller path produces plans and simulated state only. The
+  separately gated gameplay MVP uses `StreamManager`, playlist resolution, and
+  libVLC only after explicit build and INI opt-in; it never writes game state or
+  suppresses/restores the original radio.
 - Manual ASI unload is unsupported; the observer stays resident until normal
   process exit.
 - Proton/Wine installation has documentation but no verified compatibility result.

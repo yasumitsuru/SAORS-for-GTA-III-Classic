@@ -68,6 +68,8 @@ build when the target pointer size is not 32 bits.
 | `SAORS_ENABLE_NETWORK_TESTS` | `OFF` | Enable private, opt-in stream tests |
 | `SAORS_TEST_STREAM_URL` | empty | Private URL used only by opt-in tests |
 | `SAORS_ENABLE_EXPERIMENTAL_HOOKS` | `OFF` | Compile guarded experimental code |
+| `SAORS_ENABLE_RADIO_CONTROLLER_DRY_RUN` | `OFF` | Compile snapshot-driven controller support |
+| `SAORS_ENABLE_GAMEPLAY_STREAM_EXECUTOR` | `OFF` | Compile the opt-in real gameplay stream executor; requires observer, controller, libVLC, and WinHTTP |
 
 Enabling the last option currently installs no hooks because there is no verified
 address map. It exists to make later experimental work an explicit build choice.
@@ -136,6 +138,33 @@ For runtime use, either set `SAORS_LIBVLC_ROOT` or place the complete extracted
 runtime in a `vlc/` directory beside `saors_stream_probe.exe` or the ASI host
 executable. Do not copy only the two top-level DLLs; the plugin modules are
 required.
+
+## Gameplay stream MVP build
+
+The gameplay executor is excluded from shared builds and needs all four compile
+gates enabled. It still remains disabled at runtime until the INI enables both
+the observer/controller and `EnableGameplayAudioExecutor=true`:
+
+```powershell
+cmake -S . -B build/windows-msvc-x86-gameplay -A Win32 `
+  -DSAORS_BUILD_ASI=ON `
+  -DSAORS_BUILD_TESTS=ON `
+  -DSAORS_ENABLE_WARNINGS_AS_ERRORS=ON `
+  -DSAORS_ENABLE_PLUGIN_SDK=ON `
+  -DSAORS_FETCH_PLUGIN_SDK=ON `
+  -DSAORS_ENABLE_EXPERIMENTAL_GAME_OBSERVER=ON `
+  -DSAORS_ENABLE_RADIO_CONTROLLER_DRY_RUN=ON `
+  -DSAORS_ENABLE_GAMEPLAY_STREAM_EXECUTOR=ON `
+  -DSAORS_ENABLE_LIBVLC=ON `
+  "-DSAORS_LIBVLC_ROOT=$vlcRoot"
+cmake --build build/windows-msvc-x86-gameplay --config Release --parallel
+ctest --test-dir build/windows-msvc-x86-gameplay -C Release --output-on-failure
+```
+
+The executor does not mute or restore the original GTA III radio, modify game
+memory, add fades, or perform advanced reconnect. It receives only the station
+chosen by `RadioDecisionEngine`, and logs never include configured URLs, tokens,
+or local runtime paths.
 
 See [Audio backends](AUDIO_BACKENDS.md) and [Stream probe](STREAM_PROBE.md).
 

@@ -1,11 +1,15 @@
 #include "saors_gta3/Configuration.hpp"
+#include "saors_gta3/AudioBackend.hpp"
 #include "saors_gta3/GameObserver.hpp"
+#include "saors_gta3/HttpClient.hpp"
 #include "saors_gta3/Logger.hpp"
+#include "saors_gta3/PlaylistResolver.hpp"
 #include "saors_gta3/RadioActionSink.hpp"
 #include "saors_gta3/RadioController.hpp"
 #include "saors_gta3/RadioStationMapRegistry.hpp"
 #include "saors_gta3/RadioStationResolver.hpp"
 #include "saors_gta3/RadioDecisionEngine.hpp"
+#include "saors_gta3/StreamManager.hpp"
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -91,6 +95,131 @@ class FakeRadioActionSink final : public saors::RadioActionSink {
     std::size_t audioCalls{0};
     std::size_t networkCalls{0};
 };
+
+class RecordingPlaybackBackend final : public saors::AudioBackend {
+  public:
+    bool open(const std::string& url) override {
+        ++openCount;
+        openedUrls.push_back(url);
+        if (throwOpen) {
+            throw std::runtime_error("synthetic open exception");
+        }
+        if (failOpen) {
+            error = "synthetic open failure";
+            state_ = saors::AudioState::error;
+            return false;
+        }
+        state_ = saors::AudioState::opening;
+        return true;
+    }
+
+    bool play() override {
+        ++playCount;
+        if (failPlay) {
+            error = "synthetic play failure";
+            state_ = saors::AudioState::error;
+            return false;
+        }
+        state_ = saors::AudioState::playing;
+        return true;
+    }
+
+    bool pause() override {
+        ++pauseCount;
+        if (failPause) {
+            error = "synthetic pause failure";
+            state_ = saors::AudioState::error;
+            return false;
+        }
+        state_ = saors::AudioState::paused;
+        return true;
+    }
+
+    void stop() noexcept override {
+        ++stopCount;
+        state_ = saors::AudioState::stopped;
+    }
+
+    bool setVolume(const float volume) override {
+        ++setVolumeCount;
+        if (failVolume) {
+            error = "synthetic volume failure";
+            state_ = saors::AudioState::error;
+            return false;
+        }
+        lastVolume = volume;
+        return true;
+    }
+
+    bool setBufferMilliseconds(const std::uint32_t milliseconds) override {
+        ++setBufferCount;
+        lastBuffer = milliseconds;
+        return milliseconds > 0;
+    }
+
+    [[nodiscard]] saors::AudioState state() const noexcept override {
+        return state_;
+    }
+
+    [[nodiscard]] std::string lastError() const override {
+        return error;
+    }
+
+    [[nodiscard]] const char* name() const noexcept override {
+        return "recording-playback";
+    }
+
+    bool failOpen{false};
+    bool throwOpen{false};
+    bool failPlay{false};
+    bool failPause{false};
+    bool failVolume{false};
+    int openCount{0};
+    int playCount{0};
+    int pauseCount{0};
+    int stopCount{0};
+    int setVolumeCount{0};
+    int setBufferCount{0};
+    float lastVolume{0.0F};
+    std::uint32_t lastBuffer{0};
+    std::vector<std::string> openedUrls;
+    std::string error;
+
+  private:
+    saors::AudioState state_{saors::AudioState::stopped};
+};
+
+class FailingHttpClient final : public saors::HttpClient {
+  public:
+    [[nodiscard]] saors::Result<saors::HttpResponse>
+    get(const std::string& url, const saors::HttpRequestOptions& options) noexcept override {
+        static_cast<void>(url);
+        static_cast<void>(options);
+        ++requestCount;
+        return saors::Result<saors::HttpResponse>::fail("synthetic connection failure");
+    }
+
+    std::size_t requestCount{0};
+};
+
+saors::RadioActionPlan playbackPlan(const saors::RadioActionKind action,
+                                    const std::uint64_t sequence,
+                                    const saors::StationConfiguration& station,
+                                    const float volume = 0.5F) {
+    saors::RadioActionPlan plan;
+    plan.action = action;
+    plan.reason = action == saors::RadioActionKind::wouldStop
+                      ? saors::RadioDecisionReason::playerOnFoot
+                      : saors::RadioDecisionReason::ready;
+    plan.bindingKind = saors::RadioStationBindingKind::raw;
+    plan.snapshotSequence = sequence;
+    plan.rawStation = 3;
+    plan.stationKey = "PublicStation";
+    plan.preferenceVolume = volume;
+    plan.selectedStation = station;
+    plan.onlineAudioWouldBeActive = action != saors::RadioActionKind::wouldStop;
+    return plan;
+}
 
 class TemporaryLog {
   public:
@@ -275,6 +404,8 @@ TEST_CASE("Decision state machine produces every dry-run action deterministicall
     auto plan = evaluate(engine, snapshot, settings, state);
     REQUIRE(plan.action == saors::RadioActionKind::wouldStart);
     CHECK(plan.reason == saors::RadioDecisionReason::ready);
+    REQUIRE(plan.selectedStation.has_value());
+    CHECK(plan.selectedStation->url == settings.stations.at("LocalTest").url);
     CHECK(plan.stationKey == "LocalTest");
     CHECK(plan.rawStation == 3);
     CHECK(plan.preferenceVolume == Catch::Approx(0.5F));
@@ -520,6 +651,186 @@ TEST_CASE("Null action sink has no simulated execution state") {
 
     sink.submit(plan);
     CHECK_FALSE(sink.simulatedState().active);
+}
+
+TEST_CASE("Gameplay executor performs each selected-station action without rebinding") {
+    auto backend = std::make_unique<RecordingPlaybackBackend>();
+    auto* recording = backend.get();
+    saors::StreamManager streams(std::move(backend));
+    auto settings = configuration();
+    settings.general.resolveRemotePlaylists = false;
+    settings.general.bufferMilliseconds = 4200U;
+    saors::GameplayRadioActionSink sink(streams, settings.general);
+
+    saors::StationConfiguration first;
+    first.enabled = true;
+    first.url = "https://one.example.invalid/live";
+    saors::StationConfiguration second;
+    second.enabled = true;
+    second.url = "https://two.example.invalid/live";
+
+    sink.submit(playbackPlan(saors::RadioActionKind::wouldStart, 1U, first));
+    REQUIRE(recording->openedUrls.size() == 1U);
+    CHECK(recording->openedUrls.front() == first.url);
+    CHECK(recording->lastVolume == Catch::Approx(0.5F));
+    CHECK(recording->lastBuffer == 4200U);
+    CHECK(sink.simulatedState().active);
+
+    sink.submit(playbackPlan(saors::RadioActionKind::wouldSwitch, 2U, second, 0.75F));
+    REQUIRE(recording->openedUrls.size() == 2U);
+    CHECK(recording->openedUrls.back() == second.url);
+    CHECK(recording->lastVolume == Catch::Approx(0.75F));
+
+    sink.submit(playbackPlan(saors::RadioActionKind::wouldPause, 3U, second));
+    CHECK(recording->pauseCount == 1);
+    CHECK(sink.simulatedState().paused);
+
+    sink.submit(playbackPlan(saors::RadioActionKind::wouldResume, 4U, second));
+    CHECK(recording->playCount == 3);
+    CHECK_FALSE(sink.simulatedState().paused);
+
+    sink.submit(playbackPlan(saors::RadioActionKind::wouldSetVolume, 5U, second, 0.25F));
+    CHECK(recording->lastVolume == Catch::Approx(0.25F));
+
+    sink.submit(playbackPlan(saors::RadioActionKind::wouldStop, 6U, second));
+    CHECK(recording->stopCount >= 3);
+    CHECK_FALSE(sink.simulatedState().active);
+}
+
+TEST_CASE("Gameplay executor fails closed without retrying after invalid input or backend failure") {
+    auto backend = std::make_unique<RecordingPlaybackBackend>();
+    auto* recording = backend.get();
+    saors::StreamManager streams(std::move(backend));
+    auto settings = configuration();
+    settings.general.resolveRemotePlaylists = false;
+    saors::GameplayRadioActionSink sink(streams, settings.general);
+
+    saors::StationConfiguration station;
+    station.enabled = true;
+    station.url = "https://failed.example.invalid/live";
+
+    SECTION("empty URL") {
+        auto empty = station;
+        empty.url.clear();
+        CHECK_NOTHROW(sink.submit(playbackPlan(saors::RadioActionKind::wouldStart, 1U, empty)));
+        CHECK(recording->openCount == 0);
+
+        CHECK_NOTHROW(sink.submit(playbackPlan(saors::RadioActionKind::wouldStart, 2U, station)));
+        CHECK(recording->openCount == 0);
+    }
+
+    SECTION("open failure") {
+        recording->failOpen = true;
+        CHECK_NOTHROW(sink.submit(playbackPlan(saors::RadioActionKind::wouldStart, 1U, station)));
+        CHECK(recording->openCount == 1);
+
+        recording->failOpen = false;
+        CHECK_NOTHROW(sink.submit(playbackPlan(saors::RadioActionKind::wouldStart, 2U, station)));
+        CHECK(recording->openCount == 1);
+    }
+
+    SECTION("open exception") {
+        recording->throwOpen = true;
+        CHECK_NOTHROW(sink.submit(playbackPlan(saors::RadioActionKind::wouldStart, 1U, station)));
+        CHECK(recording->openCount == 1);
+
+        recording->throwOpen = false;
+        CHECK_NOTHROW(sink.submit(playbackPlan(saors::RadioActionKind::wouldStart, 2U, station)));
+        CHECK(recording->openCount == 1);
+    }
+
+    SECTION("play failure") {
+        recording->failPlay = true;
+        CHECK_NOTHROW(sink.submit(playbackPlan(saors::RadioActionKind::wouldStart, 1U, station)));
+        CHECK(recording->playCount == 1);
+
+        recording->failPlay = false;
+        CHECK_NOTHROW(sink.submit(playbackPlan(saors::RadioActionKind::wouldStart, 2U, station)));
+        CHECK(recording->playCount == 1);
+    }
+
+    SECTION("pause failure") {
+        sink.submit(playbackPlan(saors::RadioActionKind::wouldStart, 1U, station));
+        REQUIRE(sink.simulatedState().active);
+        recording->failPause = true;
+        CHECK_NOTHROW(sink.submit(playbackPlan(saors::RadioActionKind::wouldPause, 2U, station)));
+        CHECK(recording->pauseCount == 1);
+
+        recording->failPause = false;
+        CHECK_NOTHROW(sink.submit(playbackPlan(saors::RadioActionKind::wouldStart, 3U, station)));
+        CHECK(recording->openCount == 1);
+    }
+
+    SECTION("volume failure") {
+        sink.submit(playbackPlan(saors::RadioActionKind::wouldStart, 1U, station));
+        REQUIRE(sink.simulatedState().active);
+        recording->failVolume = true;
+        CHECK_NOTHROW(
+            sink.submit(playbackPlan(saors::RadioActionKind::wouldSetVolume, 2U, station, 0.25F)));
+        CHECK(recording->setVolumeCount == 2);
+
+        recording->failVolume = false;
+        CHECK_NOTHROW(sink.submit(playbackPlan(saors::RadioActionKind::wouldStart, 3U, station)));
+        CHECK(recording->openCount == 1);
+    }
+
+    SECTION("resume failure") {
+        sink.submit(playbackPlan(saors::RadioActionKind::wouldStart, 1U, station));
+        sink.submit(playbackPlan(saors::RadioActionKind::wouldPause, 2U, station));
+        REQUIRE(sink.simulatedState().paused);
+        recording->failPlay = true;
+        CHECK_NOTHROW(sink.submit(playbackPlan(saors::RadioActionKind::wouldResume, 3U, station)));
+        CHECK(recording->playCount == 2);
+
+        recording->failPlay = false;
+        CHECK_NOTHROW(sink.submit(playbackPlan(saors::RadioActionKind::wouldStart, 4U, station)));
+        CHECK(recording->openCount == 1);
+    }
+
+    CHECK(streams.state() == saors::AudioState::stopped);
+    CHECK_FALSE(sink.simulatedState().active);
+}
+
+TEST_CASE("Gameplay executor stops cleanly when stream resolution cannot connect") {
+    auto backend = std::make_unique<RecordingPlaybackBackend>();
+    auto* recording = backend.get();
+    auto client = std::make_shared<FailingHttpClient>();
+    auto resolver = std::make_shared<saors::PlaylistResolver>(client);
+    saors::StreamManager streams(std::move(backend), std::move(resolver));
+    auto settings = configuration();
+    settings.general.resolveRemotePlaylists = true;
+    saors::GameplayRadioActionSink sink(streams, settings.general);
+
+    saors::StationConfiguration station;
+    station.enabled = true;
+    station.url = "https://connection.example.invalid/live";
+
+    CHECK_NOTHROW(sink.submit(playbackPlan(saors::RadioActionKind::wouldStart, 1U, station)));
+    CHECK(client->requestCount == 1U);
+    CHECK(recording->openCount == 0);
+    CHECK(streams.state() == saors::AudioState::stopped);
+    CHECK_FALSE(sink.simulatedState().active);
+}
+
+TEST_CASE("Gameplay executor ignores out-of-order plans and stops during teardown") {
+    auto backend = std::make_unique<RecordingPlaybackBackend>();
+    auto* recording = backend.get();
+    saors::StreamManager streams(std::move(backend));
+    auto settings = configuration();
+    settings.general.resolveRemotePlaylists = false;
+    saors::StationConfiguration station;
+    station.enabled = true;
+    station.url = "https://teardown.example.invalid/live";
+
+    {
+        saors::GameplayRadioActionSink sink(streams, settings.general);
+        sink.submit(playbackPlan(saors::RadioActionKind::wouldStart, 2U, station));
+        sink.submit(playbackPlan(saors::RadioActionKind::wouldStop, 1U, station));
+        CHECK(sink.simulatedState().active);
+    }
+
+    CHECK(recording->stopCount >= 2);
+    CHECK(streams.state() == saors::AudioState::stopped);
 }
 
 TEST_CASE("Raw bindings take precedence and remain authoritative when disabled") {

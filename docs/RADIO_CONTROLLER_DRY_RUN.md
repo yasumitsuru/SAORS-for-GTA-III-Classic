@@ -1,7 +1,7 @@
 # Radio controller dry-run
 
 Phase 3C connects the read-only observer to a calculation-only radio controller.
-No plan has a gameplay executor.
+The original default path has no gameplay executor.
 
 ```text
 GameStateSnapshot
@@ -33,12 +33,14 @@ LogStateTransitions=true
 EnableRadioController=false
 RadioControllerDryRun=true
 LogRadioDecisions=true
+EnableGameplayAudioExecutor=false
 ```
 
 The ASI runtime path additionally requires the build option
 `SAORS_ENABLE_RADIO_CONTROLLER_DRY_RUN=ON`. It is `OFF` by default. Setting
-`RadioControllerDryRun=false` in an INI produces a warning and remains dry-run;
-there is no real sink to select.
+`RadioControllerDryRun=false` in an INI produces a warning and remains dry-run.
+The separate `EnableGameplayAudioExecutor` opt-in is `false` by default and is
+available only in a build with `SAORS_ENABLE_GAMEPLAY_STREAM_EXECUTOR=ON`.
 
 Station binding is explicit and optional:
 
@@ -66,7 +68,25 @@ accept only a short alphanumeric, underscore, or hyphen form; unsafe keys become
 generic values such as `StationRaw3`. Logs can contain a raw value and normalized
 preference volume, but never the configured URL.
 
-## ASI isolation
+## Gameplay stream MVP
+
+When both the build gate and INI opt-in are enabled, `GameplayRadioActionSink`
+receives the already selected `StationConfiguration` from a `RadioActionPlan`.
+It does not inspect raw values, resolve identities, or repeat binding logic.
+It uses `StreamManager`, `PlaylistResolver`, and the configured audio backend to
+map `wouldStart`, `wouldSwitch`, `wouldPause`, `wouldResume`,
+`wouldSetVolume`, and `wouldStop` to real playback operations.
+
+An empty URL, invalid URL, rejected HTTP setting, resolution error, backend
+failure, out-of-order plan, or shutdown is fail-closed: playback is stopped and
+the executor remains stopped for the process lifetime without retrying. No URL
+or backend error details are logged. If the configured playback backend is
+unavailable during initialization, the controller remains in dry-run mode. The
+original GTA III radio remains audible and untouched. There is no fade, radio
+restoration/suppression, advanced reconnect behavior, raw-10 mapping, or
+`policeRadio` behavior in this MVP.
+
+## Default ASI isolation
 
 The ASI gameplay entry point does not construct:
 
@@ -77,8 +97,8 @@ The ASI gameplay entry point does not construct:
 - a libVLC gameplay runtime.
 
 Those components remain available to the standalone stream probe and their unit
-tests. The Phase 3C ASI import audit must not contain `winhttp.dll` or
-`libvlc.dll`.
+tests. Default Phase 3C/3F ASI builds must not contain `winhttp.dll` or
+`libvlc.dll`; the separately gated gameplay MVP is intentionally the exception.
 
 The controller, sink, configuration copy, and game integration use process
 lifetime when the listener is enabled. This avoids a listener pointing to stack

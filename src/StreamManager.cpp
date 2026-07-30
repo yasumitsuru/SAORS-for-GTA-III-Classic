@@ -95,6 +95,18 @@ void StreamManager::stop() noexcept {
     }
 }
 
+bool StreamManager::setVolume(const float volume) {
+    const std::lock_guard<std::mutex> lock(mutex_);
+    const auto clamped = std::clamp(volume, 0.0F, 1.0F);
+    if (!backend_->setVolume(clamped)) {
+        lastError_ = backend_->lastError();
+        return false;
+    }
+    volume_ = clamped;
+    lastError_.clear();
+    return true;
+}
+
 bool StreamManager::reconnect() {
     const std::lock_guard<std::mutex> lock(mutex_);
     if (currentUrl_.empty() && configuredUrl_.empty()) {
