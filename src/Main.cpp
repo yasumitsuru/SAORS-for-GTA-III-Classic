@@ -80,12 +80,14 @@ struct GameplayRuntime {
     std::unique_ptr<saors::RadioController> controller;
 };
 
+#if SAORS_HAS_GAMEPLAY_STREAM_EXECUTOR
 std::vector<std::unique_ptr<GameplayRuntime>>& gameplayRuntimes() {
     // ASI unload is unsupported. Keep backend teardown out of the loader lock;
     // the operating system releases this process-lifetime registry on exit.
     static auto* runtimes = new std::vector<std::unique_ptr<GameplayRuntime>>;
     return *runtimes;
 }
+#endif
 
 DWORD WINAPI initializePlugin(const LPVOID parameter) {
     try {
@@ -215,7 +217,11 @@ DWORD WINAPI initializePlugin(const LPVOID parameter) {
                 saors::defaultRadioStationResolver(), *runtime->sink);
             listener->setController(runtime->controller.get());
             game->setSnapshotListener(listener);
+#if SAORS_HAS_GAMEPLAY_STREAM_EXECUTOR
             gameplayRuntimes().push_back(std::move(runtime));
+#else
+            static_cast<void>(runtime.release());
+#endif
             saors::Logger::info(gameplayExecutorEnabled ? "Radio controller: gameplay audio"
                                                         : "Radio controller: dry-run");
         } else {
