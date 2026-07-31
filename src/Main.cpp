@@ -4,6 +4,7 @@
 #include "saors_gta3/FileHasher.hpp"
 #include "saors_gta3/GameIntegration.hpp"
 #include "saors_gta3/Logger.hpp"
+#include "saors_gta3/OriginalRadioController.hpp"
 #include "saors_gta3/PeImageReader.hpp"
 #include "saors_gta3/PlaylistResolver.hpp"
 #include "saors_gta3/RadioActionSink.hpp"
@@ -76,6 +77,9 @@ class SnapshotListenerMultiplexer final : public saors::GameStateSnapshotListene
 
 struct GameplayRuntime {
     std::unique_ptr<saors::StreamManager> streams;
+#if SAORS_HAS_ORIGINAL_RADIO_SUPPRESSION
+    std::unique_ptr<saors::OriginalRadioController> originalRadio;
+#endif
     std::unique_ptr<saors::RadioActionSink> sink;
     std::unique_ptr<saors::RadioController> controller;
 };
@@ -175,6 +179,8 @@ DWORD WINAPI initializePlugin(const LPVOID parameter) {
         }
 #endif
 
+        bool originalRadioSuppressionEnabled = false;
+        bool originalRadioSuppressionStatusLogged = false;
 #if SAORS_HAS_RADIO_CONTROLLER_DRY_RUN
         if (runtimeConfiguration.experimental.enableRadioController) {
             auto runtime = std::make_unique<GameplayRuntime>();
@@ -195,9 +201,36 @@ DWORD WINAPI initializePlugin(const LPVOID parameter) {
 #else
                     runtime->streams = std::make_unique<saors::StreamManager>(std::move(backend));
 #endif
-                    runtime->sink = std::make_unique<saors::GameplayRadioActionSink>(
-                        *runtime->streams, runtimeConfiguration.general);
                     gameplayExecutorEnabled = true;
+#if SAORS_HAS_ORIGINAL_RADIO_SUPPRESSION
+                    runtime->originalRadio = saors::createOriginalRadioController(
+                        game->detectedExecutableProfile());
+                    const saors::OriginalRadioSuppressionPolicy suppressionPolicy{
+                        true,
+                        gameplayExecutorEnabled,
+                        runtimeConfiguration.experimental.muteOriginalRadioDuringGameplayAudio,
+                        game->detectedExecutableProfile(),
+                    };
+                    originalRadioSuppressionEnabled =
+                        saors::shouldEnableOriginalRadioSuppression(suppressionPolicy,
+                                                                   *runtime->originalRadio);
+                    if (runtimeConfiguration.experimental
+                            .muteOriginalRadioDuringGameplayAudio) {
+                        saors::Logger::info(
+                            originalRadioSuppressionEnabled
+                                ? "Original radio suppression: enabled"
+                                : "Original radio suppression: unavailable");
+                        originalRadioSuppressionStatusLogged = true;
+                    }
+#endif
+                    runtime->sink = std::make_unique<saors::GameplayRadioActionSink>(
+                        *runtime->streams, runtimeConfiguration.general,
+#if SAORS_HAS_ORIGINAL_RADIO_SUPPRESSION
+                        runtime->originalRadio.get(),
+#else
+                        nullptr,
+#endif
+                        originalRadioSuppressionEnabled);
                     saors::Logger::info(std::string("Gameplay audio executor: enabled; backend=") +
                                         runtime->streams->backendName());
                 }
@@ -236,6 +269,10 @@ DWORD WINAPI initializePlugin(const LPVOID parameter) {
             saors::Logger::info("Radio controller: disabled");
         }
 #endif
+        if (runtimeConfiguration.experimental.muteOriginalRadioDuringGameplayAudio &&
+            !originalRadioSuppressionStatusLogged) {
+            saors::Logger::info("Original radio suppression: unavailable");
+        }
         static_cast<void>(game->installHooks());
         saors::Logger::info("Game observer: " + game->observerStatusDescription());
         const auto observerResult = game->observerInstallResult();
@@ -250,7 +287,9 @@ DWORD WINAPI initializePlugin(const LPVOID parameter) {
         }
         saors::Logger::info("Audio playback: not started");
         saors::Logger::info("Network activity: not started");
-        saors::Logger::info("Original radio: untouched");
+        if (!originalRadioSuppressionEnabled) {
+            saors::Logger::info("Original radio: untouched");
+        }
     } catch (...) {
         saors::Logger::error("Unhandled exception during plugin initialization");
     }

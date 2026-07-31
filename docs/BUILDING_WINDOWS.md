@@ -70,6 +70,7 @@ build when the target pointer size is not 32 bits.
 | `SAORS_ENABLE_EXPERIMENTAL_HOOKS` | `OFF` | Compile guarded experimental code |
 | `SAORS_ENABLE_RADIO_CONTROLLER_DRY_RUN` | `OFF` | Compile snapshot-driven controller support |
 | `SAORS_ENABLE_GAMEPLAY_STREAM_EXECUTOR` | `OFF` | Compile the opt-in real gameplay stream executor; requires observer, controller, libVLC, and WinHTTP |
+| `SAORS_ENABLE_ORIGINAL_RADIO_SUPPRESSION` | `OFF` | Compile suppression lifecycle integration; requires the gameplay executor and still has no validated production write mechanism |
 
 Enabling the last option currently installs no hooks because there is no verified
 address map. It exists to make later experimental work an explicit build choice.
@@ -155,16 +156,19 @@ cmake -S . -B build/windows-msvc-x86-gameplay -A Win32 `
   -DSAORS_ENABLE_EXPERIMENTAL_GAME_OBSERVER=ON `
   -DSAORS_ENABLE_RADIO_CONTROLLER_DRY_RUN=ON `
   -DSAORS_ENABLE_GAMEPLAY_STREAM_EXECUTOR=ON `
+  -DSAORS_ENABLE_ORIGINAL_RADIO_SUPPRESSION=ON `
   -DSAORS_ENABLE_LIBVLC=ON `
   "-DSAORS_LIBVLC_ROOT=$vlcRoot"
 cmake --build build/windows-msvc-x86-gameplay --config Release --parallel
 ctest --test-dir build/windows-msvc-x86-gameplay -C Release --output-on-failure
 ```
 
-The executor does not mute or restore the original GTA III radio, modify game
-memory, add fades, or perform advanced reconnect. It receives only the station
-chosen by `RadioDecisionEngine`, and logs never include configured URLs, tokens,
-or local runtime paths.
+The additional suppression gate compiles the lifecycle and fake-backed tests,
+but the production factory remains unavailable and performs no game write.
+`MuteOriginalRadioDuringGameplayAudio=false` is also the runtime default. The
+executor receives only the station chosen by `RadioDecisionEngine`, and logs
+never include configured URLs, tokens, or local runtime paths. See
+[Original radio suppression](ORIGINAL_RADIO_SUPPRESSION.md) for the evidence gap.
 
 See [Audio backends](AUDIO_BACKENDS.md) and [Stream probe](STREAM_PROBE.md).
 

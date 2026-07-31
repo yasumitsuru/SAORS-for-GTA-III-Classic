@@ -41,6 +41,11 @@ option(
     "Enable the opt-in gameplay stream executor backed by libVLC and WinHTTP"
     OFF
 )
+option(
+    SAORS_ENABLE_ORIGINAL_RADIO_SUPPRESSION
+    "Enable the opt-in original-radio suppression integration"
+    OFF
+)
 set(SAORS_LIBVLC_ROOT "" CACHE PATH "Root of an externally supplied libVLC SDK/runtime")
 set(SAORS_PLUGIN_SDK_ROOT "" CACHE PATH "Root of an external plugin-sdk checkout")
 set(SAORS_TEST_STREAM_URL "" CACHE STRING "Private URL for opt-in network tests")
@@ -226,6 +231,7 @@ add_library(
         src/HttpUrl.cpp
         src/Logger.cpp
         src/MemoryPatch.cpp
+        src/OriginalRadioController.cpp
         src/PlaylistParser.cpp
         src/PlaylistResolver.cpp
         src/RadioActionSink.cpp
@@ -339,12 +345,24 @@ if(SAORS_ENABLE_GAMEPLAY_STREAM_EXECUTOR)
     set(SAORS_HAS_GAMEPLAY_STREAM_EXECUTOR 1)
 endif()
 
+set(SAORS_HAS_ORIGINAL_RADIO_SUPPRESSION 0)
+if(SAORS_ENABLE_ORIGINAL_RADIO_SUPPRESSION)
+    if(NOT SAORS_ENABLE_GAMEPLAY_STREAM_EXECUTOR)
+        message(
+            FATAL_ERROR
+            "SAORS_ENABLE_ORIGINAL_RADIO_SUPPRESSION requires SAORS_ENABLE_GAMEPLAY_STREAM_EXECUTOR=ON."
+        )
+    endif()
+    set(SAORS_HAS_ORIGINAL_RADIO_SUPPRESSION 1)
+endif()
+
 target_compile_definitions(
     saors_core
     PUBLIC
         SAORS_HAS_EXECUTABLE_FINGERPRINTING=${SAORS_HAS_EXECUTABLE_FINGERPRINTING}
         SAORS_HAS_EXPERIMENTAL_GAME_OBSERVER=${SAORS_HAS_EXPERIMENTAL_GAME_OBSERVER}
         SAORS_HAS_GAMEPLAY_STREAM_EXECUTOR=${SAORS_HAS_GAMEPLAY_STREAM_EXECUTOR}
+        SAORS_HAS_ORIGINAL_RADIO_SUPPRESSION=${SAORS_HAS_ORIGINAL_RADIO_SUPPRESSION}
         SAORS_HAS_RADIO_CONTROLLER_DRY_RUN=${SAORS_HAS_RADIO_CONTROLLER_DRY_RUN}
         SAORS_HAS_LIBVLC=${SAORS_HAS_LIBVLC}
         SAORS_HAS_WINHTTP=${SAORS_HAS_WINHTTP}

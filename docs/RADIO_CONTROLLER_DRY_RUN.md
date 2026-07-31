@@ -34,6 +34,7 @@ EnableRadioController=false
 RadioControllerDryRun=true
 LogRadioDecisions=true
 EnableGameplayAudioExecutor=false
+MuteOriginalRadioDuringGameplayAudio=false
 ```
 
 The ASI runtime path additionally requires the build option
@@ -41,6 +42,9 @@ The ASI runtime path additionally requires the build option
 `RadioControllerDryRun=false` in an INI produces a warning and remains dry-run.
 The separate `EnableGameplayAudioExecutor` opt-in is `false` by default and is
 available only in a build with `SAORS_ENABLE_GAMEPLAY_STREAM_EXECUTOR=ON`.
+Original-radio suppression additionally requires
+`SAORS_ENABLE_ORIGINAL_RADIO_SUPPRESSION=ON`, the INI opt-in shown above, an
+exact profile, and an available validated controller.
 
 Station binding is explicit and optional:
 
@@ -81,10 +85,12 @@ An empty URL, invalid URL, rejected HTTP setting, resolution error, backend
 failure, out-of-order plan, or shutdown is fail-closed: playback is stopped and
 the executor remains stopped for the process lifetime without retrying. No URL
 or backend error details are logged. If the configured playback backend is
-unavailable during initialization, the controller remains in dry-run mode. The
-original GTA III radio remains audible and untouched. There is no fade, radio
-restoration/suppression, advanced reconnect behavior, raw-10 mapping, or
-`policeRadio` behavior in this MVP.
+unavailable during initialization, the controller remains in dry-run mode.
+Suppression integration mutes only after a successful stream start and restores
+on every inactive or fail-closed transition. The production suppression
+controller is currently unavailable, so no game write occurs and the original
+radio remains audible. There is no fade, advanced reconnect behavior, raw-10
+mapping, or `policeRadio` behavior in this MVP.
 
 ## Default ASI isolation
 
